@@ -90,7 +90,7 @@ EXEMPLOS DE RESPOSTAS:
         logger.info(f"Tool suggestions for query '{query}': {tool_suggestions}")
         
         # Handle different types of queries
-        if "saldo" in query.lower() or "conta" in query.lower():
+        if any(word in query.lower() for word in ["saldo", "conta", "account", "balance", "login", "sign in", "access"]):
             if user_id:
                 account_info = get_account_details(user_id)
                 return {
@@ -132,13 +132,43 @@ EXEMPLOS DE RESPOSTAS:
                     "requires_user_id": user_id is None
                 }
         
-        # Default response for unclear queries
-        return {
-            "answer": "Posso ajudar você com:\n\n💰 **Dados da conta** - saldo, informações cadastrais\n📊 **Transações** - histórico de pagamentos e saques\n🎫 **Suporte** - criar tickets para problemas\n\nO que você gostaria de saber? Se precisar de informações da conta, me diga seu ID de usuário.",
-            "agent_used": "support",
-            "tool_used": None,
-            "requires_user_id": False
-        }
+        # Default response for unclear queries - enhanced with LLM
+        return self._handle_general_support_query(query, user_id)
+    
+    def _handle_general_support_query(self, query: str, user_id: Optional[str]) -> Dict:
+        """Handle general support queries with intelligent responses."""
+        try:
+            # Use LLM to provide a more intelligent response for support queries
+            from langchain.schema import HumanMessage, SystemMessage
+            
+            llm = self._get_llm()
+            
+            # Use the existing system prompt method
+            system_msg = self.get_system_message()
+            
+            # Create a specific human message for this query
+            human_prompt = f"User query: {query}"
+            messages = [system_msg, HumanMessage(content=human_prompt)]
+            
+            response = llm.invoke(messages)
+            answer = response.content.strip()
+            
+            return {
+                "answer": answer,
+                "agent_used": "support",
+                "tool_used": None,
+                "requires_user_id": False
+            }
+            
+        except Exception as e:
+            logger.warning(f"LLM general support failed: {e}")
+            # Fallback to generic response
+            return {
+                "answer": "Entendo que você está enfrentando dificuldades. Posso ajudar você com:\n\n💰 **Dados da conta** - saldo, informações cadastrais\n📊 **Transações** - histórico de pagamentos e saques\n🎫 **Suporte** - criar tickets para problemas\n\nQual seria a melhor forma de ajudar você hoje? Se precisar de informações específicas da conta, me diga seu ID de usuário.",
+                "agent_used": "support",
+                "tool_used": None,
+                "requires_user_id": False
+            }
     
     def _requires_user_id(self, query: str) -> bool:
         """Check if query requires user ID."""

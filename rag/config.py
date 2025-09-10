@@ -7,6 +7,66 @@ from langchain.embeddings.base import Embeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
 
 
+def get_llm_config():
+    """Get LLM configuration based on environment variables."""
+    import os
+    
+    provider = os.getenv("MODEL_PROVIDER", "local")
+    
+    if provider == "openai" and os.getenv("OPENAI_API_KEY"):
+        model = os.getenv("OPENAI_MODEL", "gpt-5-mini-2025-08-07")  # Default to GPT-5 mini
+        return {
+            "provider": "openai",
+            "model": model,
+            "temperature": 0.1,
+            "api_key": os.getenv("OPENAI_API_KEY")
+        }
+    else:
+        return {
+            "provider": "local",
+            "model": "mock"
+        }
+
+
+def create_llm():
+    """Create LLM instance based on configuration."""
+    config = get_llm_config()
+    
+    if config["provider"] == "openai":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            temperature=config["temperature"],
+            model=config["model"],
+            api_key=config["api_key"]
+        )
+    else:
+        # Return MockLLM for local development
+        from langchain.llms.base import LLM
+        
+        class MockLLM(LLM):
+            def _call(self, prompt, stop=None):
+                # Simple mock that extracts relevant info from context
+                if "CONTEXTO:" in prompt:
+                    context = prompt.split("CONTEXTO:")[1].split("PERGUNTA:")[0].strip()
+                    question = prompt.split("PERGUNTA:")[1].split("INSTRUÇÕES:")[0].strip()
+                    
+                    # Simple response based on context
+                    if "taxa" in question.lower() or "preço" in question.lower():
+                        return "Para informações atualizadas sobre taxas, recomendo consultar nosso site oficial ou entrar em contato com o suporte."
+                    elif "funciona" in question.lower() or "como usar" in question.lower():
+                        return "Com base nas informações disponíveis, posso explicar como funcionam nossos produtos. Para detalhes específicos, consulte nosso site."
+                    else:
+                        return "Com base nas informações disponíveis em nosso banco de dados, posso ajudar com informações gerais sobre produtos e serviços InfinitePay."
+                
+                return "Desculpe, não consegui processar sua pergunta."
+            
+            @property
+            def _llm_type(self):
+                return "mock"
+        
+        return MockLLM()
+
+
 class RAGConfig:
     """Configuration for RAG system."""
     

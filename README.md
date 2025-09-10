@@ -164,6 +164,7 @@ pytest tests/test_api_e2e.py
 |----------|-----------|---------|---------|
 | `MODEL_PROVIDER` | LLM provider | `local` | `local`, `openai` |
 | `OPENAI_API_KEY` | OpenAI API key | - | string |
+| `OPENAI_MODEL` | OpenAI model | `gpt-5-mini-2025-08-07` | `gpt-5-2025-08-07`, `gpt-5-mini-2025-08-07`, `gpt-5-nano-2025-08-07`, `gpt-4o`, `gpt-4o-mini` |
 | `EMBEDDINGS_PROVIDER` | Embeddings provider | `local` | `local`, `openai` |
 | `VECTOR_STORE` | Vector store | `chroma` | `chroma`, `faiss` |
 | `LOCALE` | Language/locale | `pt-BR` | `pt-BR` |
@@ -175,12 +176,12 @@ pytest tests/test_api_e2e.py
 
 **Development with Hot Reload:**
 ```bash
-docker-compose --profile dev up -d
+docker compose --profile dev up -d
 ```
 
 **With OpenAI:**
 ```bash
-docker-compose --profile openai up -d
+docker compose --profile openai up -d
 ```
 
 ## 🔍 Data Ingestion (RAG)

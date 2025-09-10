@@ -254,19 +254,40 @@ TOOL_METADATA = {
     "get_account_details": {
         "name": "get_account_details",
         "description": "Obter detalhes da conta do usuário",
-        "keywords": ["conta", "saldo", "dados", "informações", "cadastro", "perfil"],
+        "keywords": [
+            # Portuguese
+            "conta", "saldo", "dados", "informações", "cadastro", "perfil", "login", "entrar",
+            "acessar", "acesso", "minha conta", "meus dados", "dados cadastrais",
+            # English
+            "account", "balance", "details", "information", "profile", "login", "sign in",
+            "access", "my account", "my data", "account details", "can't login", "cannot access"
+        ],
         "requires_user_id": True
     },
     "get_recent_transactions": {
         "name": "get_recent_transactions",
         "description": "Obter transações recentes do usuário",
-        "keywords": ["transações", "extrato", "pagamentos", "saques", "histórico", "movimentações"],
+        "keywords": [
+            # Portuguese
+            "transações", "extrato", "pagamentos", "saques", "histórico", "movimentações",
+            "transferências", "transações recentes", "extrato bancário",
+            # English
+            "transactions", "statement", "payments", "withdrawals", "history", "movements",
+            "transfers", "recent transactions", "bank statement", "transaction history"
+        ],
         "requires_user_id": True
     },
     "open_support_ticket": {
         "name": "open_support_ticket",
         "description": "Abrir novo ticket de suporte",
-        "keywords": ["suporte", "ajuda", "problema", "ticket", "reclamação", "assistência"],
+        "keywords": [
+            # Portuguese
+            "suporte", "ajuda", "problema", "ticket", "reclamação", "assistência", "atendimento",
+            "preciso de ajuda", "tenho um problema", "falar com suporte",
+            # English
+            "support", "help", "issue", "problem", "ticket", "complaint", "assistance",
+            "need help", "i have a problem", "contact support", "speak with support"
+        ],
         "requires_user_id": True
     }
 }

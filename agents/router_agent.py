@@ -66,13 +66,92 @@ class RouterAgent:
         ]
     
     def classify_intent(self, query: str) -> Tuple[str, float]:
-        """Classify intent using rule-based approach with confidence scoring."""
+        """Classify intent using LLM first, fallback to rule-based approach."""
         query_lower = query.lower().strip()
         
-        # Check for escalation first
+        # Check for escalation first (rule-based for safety)
         if self._check_escalation(query_lower):
             return "escalate", 1.0
         
+        # Try LLM classification first if available
+        llm_result = self._classify_with_llm(query)
+        if llm_result:
+            return llm_result
+        
+        # Fallback: rule-based classification
+        return self._classify_with_rules(query_lower)
+    
+    def _classify_with_llm(self, query: str) -> Optional[Tuple[str, float]]:
+        """Use LLM for intelligent intent classification."""
+        try:
+            import os
+            from rag.config import create_llm
+            from langchain.schema import HumanMessage, SystemMessage
+            
+            # Check if OpenAI is properly configured
+            if os.getenv("MODEL_PROVIDER") != "openai" or not os.getenv("OPENAI_API_KEY"):
+                return None
+            
+            # Create LLM instance
+            llm = create_llm()
+            
+            # Create classification prompt
+            system_prompt = '''You are an intelligent intent classifier for a customer service system. Analyze the user query and classify it into one of these categories:
+
+INTENT CATEGORIES:
+- "support": Account issues, login problems, transaction queries, balance inquiries, transfer issues, account access problems
+- "knowledge": Product information, fees, rates, how-to questions, general company information, pricing, features
+- "escalate": When user explicitly asks for human agent, expresses frustration, or needs urgent complex help
+- "unknown": When intent is unclear or doesn't fit other categories
+
+CLASSIFICATION RULES:
+1. Consider context and synonyms
+2. Account-related issues go to "support"
+3. Product/company questions go to "knowledge"
+4. Technical problems go to "support"
+5. Explicit human agent requests go to "escalate"
+
+RESPOND WITH:
+CLASSIFICATION: <intent>
+CONFIDENCE: <0.0-1.0>
+REASON: <brief explanation>'''
+            
+            human_prompt = f"User query: {query}"
+            
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=human_prompt)
+            ]
+            
+            response = llm.invoke(messages)
+            result = response.content.strip()
+            
+            # Parse LLM response
+            lines = result.split('\n')
+            intent = "unknown"
+            confidence = 0.5
+            
+            for line in lines:
+                if "CLASSIFICATION:" in line:
+                    intent = line.split("CLASSIFICATION:")[1].strip().lower()
+                elif "CONFIDENCE:" in line:
+                    try:
+                        confidence = float(line.split("CONFIDENCE:")[1].strip())
+                    except ValueError:
+                        confidence = 0.5
+            
+            # Validate intent
+            if intent in ["support", "knowledge", "escalate", "unknown"]:
+                return intent, min(confidence, 0.95)  # Cap at 0.95 for LLM
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"LLM classification failed: {e}")
+            return None
+    
+    def _classify_with_rules(self, query_lower: str) -> Tuple[str, float]:
+        """Fallback rule-based classification."""
         # Count matches for each intent
         intent_scores = {}
         for intent, patterns in self.intent_patterns.items():
@@ -86,9 +165,9 @@ class RouterAgent:
         if not intent_scores or max(intent_scores.values()) == 0:
             # Fallback: check for specific keywords
             if self._has_support_keywords(query_lower):
-                return "support", 0.7
+                return "support", 0.6
             elif self._has_knowledge_keywords(query_lower):
-                return "knowledge", 0.7
+                return "knowledge", 0.6
             else:
                 return "unknown", 0.3
         
@@ -97,10 +176,10 @@ class RouterAgent:
         max_score = intent_scores[primary_intent]
         
         # Calculate confidence based on score and query length
-        confidence = min(max_score / 2, 1.0)  # Normalize to 0-1 (lowered threshold)
+        confidence = min(max_score / 2, 1.0)
         
         # Boost confidence for longer queries with matches
-        if len(query.split()) > 3 and max_score >= 1:
+        if len(query_lower.split()) > 3 and max_score >= 1:
             confidence = min(confidence + 0.3, 1.0)
         
         # Ensure minimum confidence for clear intent

@@ -101,15 +101,11 @@ RESPOSTA:"""
         """Process a knowledge query and return response."""
         logger.info(f"KnowledgeAgent processing query: {query}")
         
-        if not self.vectorstore:
-            return {
-                "answer": "Desculpe, não tenho acesso ao banco de dados de conhecimento no momento. Por favor, tente novamente mais tarde ou entre em contato com o suporte.",
-                "agent_used": "knowledge",
-                "sources": [],
-                "confidence": 0.0
-            }
-        
         try:
+            # Check if vector store has content
+            if not self.vectorstore or not self._has_sufficient_content():
+                return self._handle_no_content(query)
+            
             # Create retriever with MMR for diversity
             retriever = self.vectorstore.as_retriever(
                 search_type="mmr",
@@ -119,7 +115,16 @@ RESPOSTA:"""
                 }
             )
             
-            # Create QA chain
+            # Try to retrieve relevant documents
+            try:
+                docs = retriever.invoke(query)
+                if not docs or len(docs) == 0:
+                    return self._handle_no_relevant_content(query)
+            except Exception as e:
+                logger.warning(f"Retrieval failed: {e}")
+                return self._handle_no_relevant_content(query)
+            
+            # Create QA chain with retrieved documents
             qa_chain = RetrievalQA.from_chain_type(
                 llm=self._get_llm(),
                 chain_type="stuff",
@@ -136,6 +141,10 @@ RESPOSTA:"""
             # Extract answer and sources
             answer = result.get("result", "Desculpe, não consegui processar sua pergunta.")
             source_docs = result.get("source_documents", [])
+            
+            # Check if we got meaningful content
+            if not source_docs or self._is_answer_insufficient(answer):
+                return self._handle_no_relevant_content(query)
             
             # Format sources
             sources = self._format_sources(source_docs)
@@ -156,12 +165,83 @@ RESPOSTA:"""
             
         except Exception as e:
             logger.error(f"Error processing knowledge query: {e}")
+            return self._handle_fallback_response(query)
+    
+    def _has_sufficient_content(self) -> bool:
+        """Check if vector store has sufficient content."""
+        try:
+            if not self.vectorstore:
+                return False
+            
+            # Try to get a sample count
+            try:
+                count = self.vectorstore._collection.count()
+                return count > 10  # Require at least 10 documents
+            except Exception:
+                return False
+        except Exception:
+            return False
+    
+    def _is_answer_insufficient(self, answer: str) -> bool:
+        """Check if the answer is insufficient or indicates missing context."""
+        insufficient_patterns = [
+            "não tenho acesso",
+            "não consegui processar",
+            "não tenho informações",
+            "não há informações suficientes",
+            "i don't have access",
+            "i don't have information",
+            "no context provided",
+            "no information available"
+        ]
+        return any(pattern in answer.lower() for pattern in insufficient_patterns)
+    
+    def _handle_no_content(self, query: str) -> Dict:
+        """Handle case when no vector store content is available."""
+        try:
+            # Use LLM directly without RAG context
+            llm = self._get_llm()
+            
+            # Create a prompt that asks the LLM to answer based on general knowledge
+            # while being transparent about the limitation
+            prompt = f'''You are a helpful assistant for InfinitePay. The user asked: {query}
+
+Please provide a helpful response based on your general knowledge about payment systems and financial services. If you're not sure about specific InfinitePay details, be transparent about this and suggest the user contact InfinitePay support for accurate information.
+
+Guidelines:
+- Be helpful but honest about information sources
+- Suggest contacting support for specific details
+- Provide general guidance when possible
+- Always be transparent about limitations'''
+            
+            response = llm.invoke(prompt)
+            answer = response.content.strip()
+            
             return {
-                "answer": "Desculpe, ocorreu um erro ao processar sua pergunta. Por favor, tente novamente ou entre em contato com o suporte.",
+                "answer": answer,
                 "agent_used": "knowledge",
-                "sources": [],
-                "confidence": 0.0
+                "sources": ["LLM general knowledge (vector store unavailable)"],
+                "confidence": 0.6,
+                "note": "Answer based on general knowledge - vector store content unavailable"
             }
+            
+        except Exception as e:
+            logger.error(f"Fallback LLM response failed: {e}")
+            return self._handle_fallback_response(query)
+    
+    def _handle_no_relevant_content(self, query: str) -> Dict:
+        """Handle case when no relevant documents are found."""
+        return self._handle_no_content(query)  # Use same fallback logic
+    
+    def _handle_fallback_response(self, query: str) -> Dict:
+        """Final fallback response when all else fails."""
+        return {
+            "answer": "Desculpe, não consegui encontrar informações específicas sobre sua pergunta. Recomendo entrar em contato com o suporte da InfinitePay para obter ajuda personalizada.",
+            "agent_used": "knowledge",
+            "sources": [],
+            "confidence": 0.2,
+            "note": "Fallback response - all methods failed"
+        }
     
     def _format_sources(self, source_docs) -> List[str]:
         """Format source documents for response."""
@@ -198,39 +278,8 @@ RESPOSTA:"""
     
     def _get_llm(self):
         """Get LLM instance based on configuration."""
-        import os
-        
-        provider = os.getenv("MODEL_PROVIDER", "local")
-        
-        if provider == "openai" and os.getenv("OPENAI_API_KEY"):
-            from langchain_openai import ChatOpenAI
-            return ChatOpenAI(temperature=0.1, model="gpt-3.5-turbo")
-        else:
-            # Fallback to a simple local model or mock
-            from langchain.llms.base import LLM
-            
-            class MockLLM(LLM):
-                def _call(self, prompt, stop=None):
-                    # Simple mock that extracts relevant info from context
-                    if "CONTEXTO:" in prompt:
-                        context = prompt.split("CONTEXTO:")[1].split("PERGUNTA:")[0].strip()
-                        question = prompt.split("PERGUNTA:")[1].split("INSTRUÇÕES:")[0].strip()
-                        
-                        # Simple response based on context
-                        if "taxa" in question.lower() or "preço" in question.lower():
-                            return "Para informações atualizadas sobre taxas, recomendo consultar nosso site oficial ou entrar em contato com o suporte."
-                        elif "funciona" in question.lower() or "como usar" in question.lower():
-                            return "Com base nas informações disponíveis, posso explicar como funcionam nossos produtos. Para detalhes específicos, consulte nosso site."
-                        else:
-                            return "Com base nas informações disponíveis em nosso banco de dados, posso ajudar com informações gerais sobre produtos e serviços InfinitePay."
-                    
-                    return "Desculpe, não consegui processar sua pergunta."
-                
-                @property
-                def _llm_type(self):
-                    return "mock"
-            
-            return MockLLM()
+        from rag.config import create_llm
+        return create_llm()
     
     def is_available(self) -> bool:
         """Check if knowledge agent is available (vector store loaded)."""
