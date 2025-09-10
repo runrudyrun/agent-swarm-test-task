@@ -135,6 +135,11 @@ EXEMPLOS DE RESPOSTAS:
         # Default response for unclear queries - enhanced with LLM
         return self._handle_general_support_query(query, user_id)
     
+    def _get_llm(self):
+        """Get LLM instance for intelligent responses."""
+        from rag.config import create_llm
+        return create_llm()
+    
     def _handle_general_support_query(self, query: str, user_id: Optional[str]) -> Dict:
         """Handle general support queries with intelligent responses."""
         try:

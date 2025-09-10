@@ -1,60 +1,46 @@
-# Multi-stage build for production-ready image
-FROM python:3.11-slim as builder
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy and install Python dependencies
-COPY pyproject.toml ./
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -e .
-
-# Production stage
+# Optimized Dockerfile for faster builds
 FROM python:3.11-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH" \
-    PORT=8000
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8000 \
+    TRANSFORMERS_CACHE=/home/appuser/.cache/infinitepay \
+    HF_HOME=/home/appuser/.cache/infinitepay \
+    HOME=/home/appuser
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
-# Install runtime dependencies
+# Install system dependencies needed for ML libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    build-essential \
+    gcc \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
+# Create non-root user with home directory
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
 # Set working directory
 WORKDIR /app
 
+# Copy and install Python dependencies first (for better caching)
+COPY pyproject.toml ./
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install fastapi uvicorn pydantic python-dotenv httpx beautifulsoup4 lxml numpy openai langchain langchain-community langchain-openai pytest pytest-asyncio chromadb sentence-transformers || true
+
 # Copy application code
 COPY --chown=appuser:appuser . .
 
-# Create necessary directories
-RUN mkdir -p /app/data/{raw,chroma,mock,sources} && \
-    chown -R appuser:appuser /app/data
+# Copy entrypoint scripts
+COPY --chown=appuser:appuser docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=appuser:appuser docker_startup_check.py /app/docker_startup_check.py
 
-# Switch to non-root user
-USER appuser
+# Create necessary directories with proper ownership
+RUN mkdir -p /app/data/{raw,chroma,mock,sources} && \
+    mkdir -p /home/appuser/.cache/infinitepay && \
+    chmod +x /app/docker-entrypoint.sh
 
 # Expose port
 EXPOSE 8000
@@ -63,5 +49,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the entrypoint script
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD []

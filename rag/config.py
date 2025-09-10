@@ -60,6 +60,14 @@ def create_llm():
                 
                 return "Desculpe, não consegui processar sua pergunta."
             
+            def invoke(self, prompt, **kwargs):
+                # Return an object with content attribute to match OpenAI response format
+                response_text = self._call(prompt)
+                class MockResponse:
+                    def __init__(self, content):
+                        self.content = content
+                return MockResponse(response_text)
+            
             @property
             def _llm_type(self):
                 return "mock"

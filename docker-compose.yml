@@ -5,14 +5,16 @@ services:
     build: .
     ports:
       - "8000:8000"
+    user: "1000:1000"
     environment:
       - PORT=8000
       - LOG_LEVEL=INFO
       - PERSONALITY=on
       - LOCALE=pt-BR
-      - MODEL_PROVIDER=local
-      - EMBEDDINGS_PROVIDER=local
+      - MODEL_PROVIDER=${MODEL_PROVIDER:-local}
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-local}
       - VECTOR_STORE=chroma
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./data:/app/data
       - ./.env:/app/.env:ro
@@ -34,9 +36,10 @@ services:
       - LOG_LEVEL=DEBUG
       - PERSONALITY=on
       - LOCALE=pt-BR
-      - MODEL_PROVIDER=local
-      - EMBEDDINGS_PROVIDER=local
+      - MODEL_PROVIDER=${MODEL_PROVIDER:-local}
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-local}
       - VECTOR_STORE=chroma
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - .:/app
       - ./data:/app/data
@@ -50,6 +53,7 @@ services:
     build: .
     ports:
       - "8002:8000"
+    user: "1000:1000"
     environment:
       - PORT=8000
       - LOG_LEVEL=INFO
