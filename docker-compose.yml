@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  agent-swarm:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - LOG_LEVEL=INFO
+      - PERSONALITY=on
+      - LOCALE=pt-BR
+      - MODEL_PROVIDER=local
+      - EMBEDDINGS_PROVIDER=local
+      - VECTOR_STORE=chroma
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Development service with hot reload
+  agent-swarm-dev:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - PORT=8000
+      - LOG_LEVEL=DEBUG
+      - PERSONALITY=on
+      - LOCALE=pt-BR
+      - MODEL_PROVIDER=local
+      - EMBEDDINGS_PROVIDER=local
+      - VECTOR_STORE=chroma
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    profiles:
+      - dev
+
+  # Optional: Service with OpenAI integration
+  agent-swarm-openai:
+    build: .
+    ports:
+      - "8002:8000"
+    environment:
+      - PORT=8000
+      - LOG_LEVEL=INFO
+      - PERSONALITY=on
+      - LOCALE=pt-BR
+      - MODEL_PROVIDER=openai
+      - EMBEDDINGS_PROVIDER=openai
+      - VECTOR_STORE=chroma
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    profiles:
+      - openai
+    depends_on:
+      - agent-swarm
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  data:
+    driver: local
