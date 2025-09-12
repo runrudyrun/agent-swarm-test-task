@@ -74,44 +74,29 @@ FORMATO DAS RESPOSTAS:
     
     def _create_qa_prompt(self, lang: str = "pt") -> PromptTemplate:
         """Create QA prompt template."""
-        if lang.startswith("en"):
-            template = """You are a knowledgeable and friendly assistant for InfinitePay. Your goal is to provide clear and helpful answers based on the information available to you.
+        language_map = {
+            "en": "English",
+            "pt": "Portuguese"
+        }
+        output_language = language_map.get(lang.split('-')[0], "Portuguese")
 
-Here's some information that might be relevant:
+        template = f"""You are a knowledgeable and friendly assistant for InfinitePay. Your primary goal is to provide clear, helpful, and accurate answers based on the CONTEXT provided.
+
 CONTEXT:
-{context}
+{{context}}
 
-Based on that, please answer the following question:
-QUESTION: {question}
+QUESTION:
+{{question}}
 
 INSTRUCTIONS:
-1. Answer in a natural, conversational way. Avoid phrases like "based on the context."
-2. If the information isn't in the context, say you don't have that specific detail and suggest checking the official website or contacting support.
-3. Provide detailed but concise answers.
-4. Use markdown for readability and appropriate emojis to be friendly.
-5. Always cite the sources (URLs) when available.
-6. Respond in English.
+1.  **Language**: You MUST respond in the following language: **{output_language}**.
+2.  **Tone**: Be natural, conversational, and friendly. Use markdown and emojis to improve readability.
+3.  **Scope**: If the user's question is unrelated to InfinitePay (e.g., sports, news, personal questions), you MUST politely state that you can only answer questions about InfinitePay products and services. Do NOT answer the off-topic question.
+4.  **Context Usage**: Base your answer strictly on the CONTEXT provided. Do not use prior knowledge.
+5.  **No Information**: If the CONTEXT does not contain the answer, state that you don't have that specific information and suggest contacting InfinitePay support or visiting the official website.
+6.  **Citations**: When you use information from the context, cite the sources provided.
 
 ANSWER:"""
-        else:  # Default to Portuguese
-            template = """Você é um assistente da InfinitePay, especialista em ajudar clientes com informações sobre nossos produtos e serviços. Seu objetivo é fornecer respostas claras e úteis.
-
-Aqui estão algumas informações que podem ser úteis:
-CONTEXTO:
-{context}
-
-Com base nisso, por favor, responda à seguinte pergunta:
-PERGUNTA: {question}
-
-INSTRUÇÕES:
-1. Responda de forma natural e conversacional. Evite frases como "com base no contexto".
-2. Se a informação não estiver disponível no contexto, diga que não possui esse detalhe específico e sugira consultar o site oficial ou o suporte.
-3. Forneça respostas detalhadas, mas concisas.
-4. Use markdown para legibilidade e emojis apropriados para um tom amigável.
-5. Sempre cite as fontes (URLs) quando disponíveis.
-6. Responda em português.
-
-RESPOSTA:"""
         
         return PromptTemplate(
             template=template,
@@ -125,7 +110,7 @@ RESPOSTA:"""
         try:
             # Check if vector store has content
             if not self.vectorstore or not self._has_sufficient_content():
-                return self._handle_no_content(query)
+                return self._handle_no_content(query, lang=lang)
             
             # Create retriever with MMR for diversity
             retriever = self.vectorstore.as_retriever(
@@ -140,10 +125,10 @@ RESPOSTA:"""
             try:
                 docs = retriever.invoke(query)
                 if not docs or len(docs) == 0:
-                    return self._handle_no_relevant_content(query)
+                    return self._handle_no_relevant_content(query, lang=lang)
             except Exception as e:
                 logger.warning(f"Retrieval failed: {e}")
-                return self._handle_no_relevant_content(query)
+                return self._handle_no_relevant_content(query, lang=lang)
             
             # Create QA chain with retrieved documents
             qa_chain = RetrievalQA.from_chain_type(
@@ -165,7 +150,7 @@ RESPOSTA:"""
             
             # Check if we got meaningful content
             if not source_docs or self._is_answer_insufficient(answer):
-                return self._handle_no_relevant_content(query)
+                return self._handle_no_relevant_content(query, lang=lang)
             
             # Format sources
             sources = self._format_sources(source_docs)
@@ -173,8 +158,8 @@ RESPOSTA:"""
             # Calculate confidence based on source relevance
             confidence = self._calculate_confidence(source_docs)
             
-            # Add sources to answer if available
-            if sources:
+            # Add sources to the answer only if the answer is not a refusal
+            if sources and not self._is_answer_insufficient(answer):
                 answer += f"\n\n📚 **Fontes:**\n" + "\n".join(sources)
             
             return {
@@ -186,7 +171,7 @@ RESPOSTA:"""
             
         except Exception as e:
             logger.error(f"Error processing knowledge query: {e}")
-            return self._handle_fallback_response(query)
+            return self._handle_fallback_response(query, lang=lang)
     
     def _has_sufficient_content(self) -> bool:
         """Check if vector store has sufficient content."""
@@ -217,47 +202,69 @@ RESPOSTA:"""
         ]
         return any(pattern in answer.lower() for pattern in insufficient_patterns)
     
-    def _handle_no_content(self, query: str) -> Dict:
+    def _handle_no_content(self, query: str, lang: str = "pt") -> Dict:
         """Handle case when no vector store content is available."""
+        language_map = {
+            "en": "English",
+            "pt": "Portuguese"
+        }
+        output_language = language_map.get(lang.split('-')[0], "Portuguese")
+
+        # This is a system-level failure, so we use a predefined response instead of the LLM.
+        if output_language == "English":
+            answer = "I'm sorry, my knowledge base is currently unavailable, so I can't answer your question at the moment. Please try again in a few moments. Thank you for your patience! 🙏"
+        else:
+            answer = "Desculpe, minha base de conhecimento está indisponível no momento, então não consigo responder sua pergunta agora. Por favor, tente novamente em alguns instantes. Agradeço a sua paciência! 🙏"
+
+        return {
+            "answer": answer,
+            "agent_used": "knowledge",
+            "sources": [],
+            "confidence": 0.05,
+            "note": "Vector store content unavailable."
+        }
+    
+    def _handle_no_relevant_content(self, query: str, lang: str = "pt") -> Dict:
+        """Handle case when no relevant RAG documents are found by using the LLM to politely decline."""
         try:
-            # Use LLM directly without RAG context
             llm = self._get_llm()
-            
-            # Create a prompt that asks the LLM to answer based on general knowledge
-            # while being transparent about the limitation
-            prompt = f'''You are a helpful assistant for InfinitePay. The user asked: {query}
 
-Please provide a helpful response based on your general knowledge about payment systems and financial services. If you're not sure about specific InfinitePay details, be transparent about this and suggest the user contact InfinitePay support for accurate information.
+            language_map = {
+                "en": "English",
+                "pt": "Portuguese"
+            }
+            output_language = language_map.get(lang.split('-')[0], "Portuguese")
 
-Guidelines:
-- Be helpful but honest about information sources
-- Suggest contacting support for specific details
-- Provide general guidance when possible
-- Always be transparent about limitations'''
-            
+            prompt = (
+                f"You are an assistant for InfinitePay. The user asked a question that is likely off-topic: '{query}'. "
+                "Your knowledge base had no relevant information. "
+                f"Your task is to politely inform the user that you can only answer questions about InfinitePay products and services. "
+                f"Do NOT attempt to answer the user's question. You MUST respond in **{output_language}**."
+            )
+
             response = llm.invoke(prompt)
             answer = response.content.strip()
-            
+
             return {
                 "answer": answer,
                 "agent_used": "knowledge",
-                "sources": ["LLM general knowledge (vector store unavailable)"],
-                "confidence": 0.6,
-                "note": "Answer based on general knowledge - vector store content unavailable"
+                "sources": [],
+                "confidence": 0.1,
+                "note": "No relevant RAG content found; LLM generated off-topic response."
             }
-            
         except Exception as e:
-            logger.error(f"Fallback LLM response failed: {e}")
-            return self._handle_fallback_response(query)
+            logger.error(f"Fallback LLM response for no relevant content failed: {e}")
+            return self._handle_fallback_response(query, lang=lang)
     
-    def _handle_no_relevant_content(self, query: str) -> Dict:
-        """Handle case when no relevant documents are found."""
-        return self._handle_no_content(query)  # Use same fallback logic
-    
-    def _handle_fallback_response(self, query: str) -> Dict:
+    def _handle_fallback_response(self, query: str, lang: str = "pt") -> Dict:
         """Final fallback response when all else fails."""
+        if lang.startswith("en"):
+            answer = "I'm sorry, I couldn't find specific information about your question. I recommend contacting InfinitePay support for personalized assistance."
+        else:
+            answer = "Desculpe, não consegui encontrar informações específicas sobre sua pergunta. Recomendo entrar em contato com o suporte da InfinitePay para obter ajuda personalizada."
+
         return {
-            "answer": "Desculpe, não consegui encontrar informações específicas sobre sua pergunta. Recomendo entrar em contato com o suporte da InfinitePay para obter ajuda personalizada.",
+            "answer": answer,
             "agent_used": "knowledge",
             "sources": [],
             "confidence": 0.2,

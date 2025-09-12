@@ -46,15 +46,20 @@ class SupportAgent:
     
     def _create_system_prompt(self, lang: str = "pt") -> str:
         """Create system prompt for the support agent."""
-        if lang.startswith("en"):
-            return """You are a customer support assistant for InfinitePay, specializing in helping users with account and transaction-related issues.
+        language_map = {
+            "en": "English",
+            "pt": "Portuguese"
+        }
+        output_language = language_map.get(lang.split('-')[0], "Portuguese")
+
+        return f"""You are a customer support assistant for InfinitePay, specializing in helping users with account and transaction-related issues.
 
 YOUR RESPONSIBILITIES:
-1. Provide clear and accurate information about accounts and transactions.
-2. Help users understand their data and resolve issues.
-3. Create support tickets when necessary.
-4. Always respond in English.
-5. Maintain a professional, yet friendly and empathetic tone.
+1.  **Language**: You MUST respond in the following language: **{output_language}**.
+2.  Provide clear and accurate information about accounts and transactions.
+3.  Help users understand their data and resolve issues.
+4.  Create support tickets when necessary.
+5.  Maintain a professional, yet friendly and empathetic tone.
 
 AVAILABLE TOOLS:
 - get_account_details: Get user account details (balance, status, registration info).
@@ -63,41 +68,11 @@ AVAILABLE TOOLS:
 
 IMPORTANT GUIDELINES:
 - ALWAYS check if a user_id is available before using tools.
-- If user_id is missing, politely ask the user for it.
+- If user_id is missing, politely ask the user for it in the correct language ({output_language}).
 - For technical or complex issues, create a ticket.
 - Be proactive in offering additional help.
 - Use appropriate emojis to make the communication friendlier.
-
-RESPONSE EXAMPLES:
-✅ "Of course! I can help you with your account statement. What is your user ID?"
-✅ "Checking your recent transactions..."
-❌ "I can't help" (without explanation)"""
-        else: # Default to Portuguese
-            return """Você é um assistente de suporte ao cliente da InfinitePay, especializado em ajudar usuários com questões relacionadas às suas contas e transações.
-
-SUAS RESPONSABILIDADES:
-1. Fornecer informações claras e precisas sobre contas e transações
-2. Ajudar usuários a entenderem seus dados e resolver problemas
-3. Criar tickets de suporte quando necessário
-4. Sempre responder em português do Brasil (pt-BR)
-5. Manter um tom profissional, mas amigável e empático
-
-FERRAMENTAS DISPONÍVEIS:
-- get_account_details: Obter detalhes da conta (saldo, status, dados cadastrais)
-- get_recent_transactions: Obter histórico de transações recentes
-- open_support_ticket: Criar novo ticket de suporte
-
-DIRETRIZES IMPORTANTES:
-- SEMPRE verifique se o user_id está disponível antes de usar ferramentas
-- Se não houver user_id, peça educadamente ao usuário
-- Para questões técnicas ou problemas complexos, crie um ticket
-- Seja proativo em oferecer ajuda adicional
-- Use emojis apropriados para tornar a comunicação mais amigável
-
-EXEMPLOS DE RESPOSTAS:
-✅ "Claro! Posso ajudar você com o extrato da sua conta. Qual é o seu ID de usuário?"
-✅ "Verificando suas transações recentes..."
-❌ "Não posso ajudar" (sem explicação)"""
+"""
     
     def process_query(self, query: str, user_id: Optional[str] = None, lang: str = "pt") -> Dict:
         """Process a support query and return response."""
@@ -105,10 +80,11 @@ EXEMPLOS DE RESPOSTAS:
         
         # Check if user_id is required but not provided
         if not user_id and self._requires_user_id(query):
-            if lang.startswith("en"):
-                answer = "Hi! 👋 To help you with your account information, I need your user ID. You can find it in your profile or in emails from InfinitePay. What is your ID?"
-            else:
-                answer = "Olá! 👋 Para ajudar você com informações da sua conta, preciso do seu ID de usuário. Você pode encontrá-lo em seu perfil ou e-mails da InfinitePay. Qual é o seu ID?"
+            answer_map = {
+                "en": "Hi! 👋 To help you with your account information, I need your user ID. You can find it in your profile or in emails from InfinitePay. What is your ID?",
+                "pt": "Olá! 👋 Para ajudar você com informações da sua conta, preciso do seu ID de usuário. Você pode encontrá-lo em seu perfil ou e-mails da InfinitePay. Qual é o seu ID?"
+            }
+            answer = answer_map.get(lang.split('-')[0], answer_map["pt"])
             return {
                 "answer": answer,
                 "agent_used": "support",
@@ -156,10 +132,11 @@ EXEMPLOS DE RESPOSTAS:
                     "requires_user_id": False
                 }
             else:
-                if lang.startswith("en"):
-                    answer = "I can help you create a support ticket! 🎫\n\nTo log your issue, I need:\n1. A brief subject (e.g., 'Problem with card machine')\n2. A detailed description of the problem\n\nPlease tell me what issue you are facing."
-                else:
-                    answer = "Posso ajudar você a criar um ticket de suporte! 🎫\n\nPara registrar seu problema, preciso de:\n1. Um breve assunto (ex: 'Problema com maquininha')\n2. Descrição detalhada do problema\n\nPor favor, me diga qual é o problema que você está enfrentando."
+                answer_map = {
+                    "en": "I can help you create a support ticket! 🎫\n\nTo log your issue, I need:\n1. A brief subject (e.g., 'Problem with card machine')\n2. A detailed description of the problem\n\nPlease tell me what issue you are facing.",
+                    "pt": "Posso ajudar você a criar um ticket de suporte! 🎫\n\nPara registrar seu problema, preciso de:\n1. Um breve assunto (ex: 'Problema com maquininha')\n2. Descrição detalhada do problema\n\nPor favor, me diga qual é o problema que você está enfrentando."
+                }
+                answer = answer_map.get(lang.split('-')[0], answer_map["pt"])
                 return {
                     "answer": answer,
                     "agent_used": "support",
@@ -203,10 +180,11 @@ EXEMPLOS DE RESPOSTAS:
         except Exception as e:
             logger.warning(f"LLM general support failed: {e}")
             # Fallback to generic response
-            if lang.startswith("en"):
-                answer = "I understand you're facing difficulties. I can help you with:\n\n💰 **Account data** - balance, registration information\n📊 **Transactions** - history of payments and withdrawals\n🎫 **Support** - create tickets for issues\n\nHow can I best help you today? If you need specific account information, please provide your user ID."
-            else:
-                answer = "Entendo que você está enfrentando dificuldades. Posso ajudar você com:\n\n💰 **Dados da conta** - saldo, informações cadastrais\n📊 **Transações** - histórico de pagamentos e saques\n🎫 **Suporte** - criar tickets para problemas\n\nQual seria a melhor forma de ajudar você hoje? Se precisar de informações específicas da conta, me diga seu ID de usuário."
+            answer_map = {
+                "en": "I understand you're facing difficulties. I can help you with:\n\n💰 **Account data** - balance, registration information\n📊 **Transactions** - history of payments and withdrawals\n🎫 **Support** - create tickets for issues\n\nHow can I best help you today? If you need specific account information, please provide your user ID.",
+                "pt": "Entendo que você está enfrentando dificuldades. Posso ajudar você com:\n\n💰 **Dados da conta** - saldo, informações cadastrais\n📊 **Transações** - histórico de pagamentos e saques\n🎫 **Suporte** - criar tickets para problemas\n\nQual seria a melhor forma de ajudar você hoje? Se precisar de informações específicas da conta, me diga seu ID de usuário."
+            }
+            answer = answer_map.get(lang.split('-')[0], answer_map["pt"])
             return {
                 "answer": answer,
                 "agent_used": "support",
