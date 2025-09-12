@@ -24,6 +24,8 @@ class RouterAgent:
                 # Account-related
                 r"saldo\b", r"conta\b", r"extrato\b", r"transações?\b", r"movimentações?\b",
                 r"histórico\b", r"pagamentos?\b", r"saques?\b", r"depósitos?\b",
+                # Transfers
+                r"transferências?\b", r"transfer\b", r"transfers\b", r"pix\b",
                 
                 # User data
                 r"meus?\s+dados\b", r"informações?\s+d[ao]\s+cadastro\b", r"perfil\b",
