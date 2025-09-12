@@ -191,14 +191,13 @@ ANSWER:"""
     def _is_answer_insufficient(self, answer: str) -> bool:
         """Check if the answer is insufficient or indicates missing context."""
         insufficient_patterns = [
-            "não tenho acesso",
-            "não consegui processar",
-            "não tenho informações",
-            "não há informações suficientes",
-            "i don't have access",
-            "i don't have information",
-            "no context provided",
-            "no information available"
+            # General lack of information
+            "não tenho acesso", "não consegui processar", "não tenho informações",
+            "não há informações suficientes", "i don't have access", "i don't have information",
+            "no context provided", "no information available",
+            # Off-topic refusals (more general)
+            "só posso responder", "i can only answer",
+            "não posso responder", "i cannot answer"
         ]
         return any(pattern in answer.lower() for pattern in insufficient_patterns)
     
