@@ -221,6 +221,7 @@ REASON: <brief explanation>'''
                 "agent_used": "router",
                 "intent": intent,
                 "confidence": confidence,
+                "lang": lang,
                 "handoff_to_human": True
             }
 
@@ -229,7 +230,8 @@ REASON: <brief explanation>'''
             support_response = self.support_agent.process_query(query, user_id, lang=lang)
             support_response.update({
                 "intent": intent,
-                "confidence": confidence
+                "confidence": confidence,
+                "lang": lang
             })
             return support_response
 
@@ -238,7 +240,8 @@ REASON: <brief explanation>'''
             knowledge_response = self.knowledge_agent.process_query(query, lang=lang)
             knowledge_response.update({
                 "intent": intent,
-                "confidence": confidence
+                "confidence": confidence,
+                "lang": lang
             })
             return knowledge_response
 
@@ -249,7 +252,8 @@ REASON: <brief explanation>'''
                 if knowledge_response.get("confidence", 0) > 0.3:
                     knowledge_response.update({
                         "intent": "knowledge",
-                        "confidence": confidence * 0.8
+                        "confidence": confidence * 0.8,
+                        "lang": lang
                     })
                     return knowledge_response
 
@@ -257,7 +261,8 @@ REASON: <brief explanation>'''
             support_response = self.support_agent.process_query(query, user_id, lang=lang)
             support_response.update({
                 "intent": "support",
-                "confidence": confidence * 0.8
+                "confidence": confidence * 0.8,
+                "lang": lang
             })
             return support_response
     
@@ -349,6 +354,7 @@ REASON: <brief explanation>'''
             "agent_used": "router",
             "intent": "multi_intent",
             "confidence": avg_confidence,
+            "lang": lang,
             "sub_queries": sub_queries,
             "agents_used": agents_used
         }

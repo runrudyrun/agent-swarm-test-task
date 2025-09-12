@@ -164,26 +164,78 @@ IMPORTANT GUIDELINES:
 
                     # Prepare facts for LLM summarization
                     balance_str = f"R$ {balance:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    # Language-specific recommendations (simple and relevant)
+                    if lang.startswith("en"):
+                        recs_base = [
+                            "Check recipient details and the amount",
+                            "Verify the app has no pending updates",
+                            "Try again in a few minutes",
+                            "If it keeps failing, I can open a support ticket",
+                        ]
+                        recs_suspended = [
+                            "Complete any pending identity/registration verification",
+                            "Resolve compliance or security reviews shown in the app",
+                            "Reply here with 'Open ticket' and I will escalate",
+                        ]
+                        recs_failed = [
+                            "Double-check recipient info (PIX key/CPF/CNPJ, bank, amount)",
+                            "Try on a different connection (Wi‑Fi/4G) and update the app",
+                            "Try a smaller test amount to isolate the issue",
+                            "If still failing, say 'Open ticket' and I will escalate",
+                        ]
+                        recs_pending = [
+                            "Wait a few minutes — pending items may settle shortly",
+                            "Check notifications in the app for any required action",
+                            "If it doesn't clear, I can open a support ticket for you",
+                        ]
+                    else:
+                        recs_base = [
+                            "Conferir os dados do destinatário e o valor",
+                            "Verificar se há atualização pendente do app",
+                            "Tentar novamente em alguns minutos",
+                            "Se continuar falhando, posso abrir um chamado",
+                        ]
+                        recs_suspended = [
+                            "Concluir eventuais verificações de identidade/cadastro",
+                            "Resolver pendências de conformidade ou segurança no app",
+                            "Responda 'Abrir chamado' que eu escalo para o suporte",
+                        ]
+                        recs_failed = [
+                            "Conferir informações do destinatário (chave PIX/CPF/CNPJ, banco, valor)",
+                            "Tentar em outra conexão (Wi‑Fi/4G) e atualizar o app",
+                            "Tentar um valor menor para isolar o problema",
+                            "Se continuar, diga 'Abrir chamado' que eu escalo",
+                        ]
+                        recs_pending = [
+                            "Aguardar alguns minutos — itens pendentes podem compensar",
+                            "Verificar notificações no app para ações necessárias",
+                            "Se não resolver, posso abrir um chamado para você",
+                        ]
+
+                    if status != "active":
+                        recs = recs_suspended
+                    elif failed_count > 0:
+                        recs = recs_failed
+                    elif pending_count > 0:
+                        recs = recs_pending
+                    else:
+                        recs = recs_base
+
                     facts = {
                         "account_status": status,
                         "available_balance": balance_str,
                         "recent_pending_transactions": pending_count,
                         "recent_failed_transactions": failed_count,
                         "channel": "transfers/PIX",
-                        "recommended_actions": [
-                            "Confirmar dados/identidade se solicitado pelo app",
-                            "Resolver eventuais pendências de conformidade/segurança",
-                            "Conferir dados do destinatário e valor",
-                            "Verificar se há atualização pendente do app",
-                            "Tentar novamente em alguns minutos"
-                        ],
+                        "recommended_actions": recs,
                     }
 
                     # Try to summarize with LLM using the verified facts
                     summarized = self._summarize_support_facts_with_llm(query, facts, lang=lang)
                     if summarized:
+                        account_block = self._build_account_block(user, lang)
                         return {
-                            "answer": summarized,
+                            "answer": f"{summarized}\n\n{account_block}",
                             "agent_used": "support",
                             "tool_used": "diagnose_transfers",
                             "requires_user_id": False,
@@ -233,8 +285,10 @@ IMPORTANT GUIDELINES:
                                 "Quer que eu abra um ticket de suporte descrevendo esse problema de transferência para você?"
                             )
 
+                    # Append account data block in the appropriate language
+                    account_block = self._build_account_block(user, lang)
                     return {
-                        "answer": answer,
+                        "answer": f"{answer}\n\n{account_block}",
                         "agent_used": "support",
                         "tool_used": "diagnose_transfers",
                         "requires_user_id": False,
@@ -359,6 +413,37 @@ IMPORTANT GUIDELINES:
     def get_system_message(self, lang: str = "pt") -> SystemMessage:
         """Get system message for LLM integration."""
         return SystemMessage(content=self._create_system_prompt(lang=lang))
+
+    def _build_account_block(self, user: Dict, lang: str) -> str:
+        """Build a localized account details block without raw dumps."""
+        try:
+            # Prefer localized rendering
+            if lang.startswith("pt"):
+                # Reuse existing formatter which is already localized in PT
+                return get_account_details(user.get("id", ""))
+            # English rendering
+            balance = user.get("balance", 0)
+            balance_str = f"R$ {balance:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            status = user.get("status", "unknown")
+            status_emoji = {
+                "active": "✅",
+                "suspended": "⚠️",
+                "inactive": "❌",
+            }.get(status, "❓")
+            account_type = user.get("account_type", "unknown").title()
+            block = (
+                "📋 Account Details\n\n"
+                f"Name: {user.get('name','N/A')}\n"
+                f"Email: {user.get('email','N/A')}\n"
+                f"Phone: {user.get('phone','N/A')}\n"
+                f"Account Type: {account_type}\n"
+                f"Current Balance: {balance_str}\n"
+                f"Status: {status_emoji} {status.title()}\n"
+                f"Created At: {user.get('created_at','N/A')}"
+            )
+            return block
+        except Exception:
+            return ""
 
     def _summarize_support_facts_with_llm(self, query: str, facts: Dict, lang: str = "pt") -> Optional[str]:
         """Use the LLM to paraphrase verified support facts without altering them.

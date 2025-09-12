@@ -22,21 +22,32 @@ class PersonalityLayer:
             "professional": True
         }
         
-        # Common adjustments
-        self.adjustments = {
-            # Make more friendly
-            "Olá": "Oi! 👋",
-            "Prezado": "Oi",
-            "Senhor(a)": "Você",
-            
-            # Add empathy
-            "não consigo": "não conseguir",
-            "problema": "situação",
-            "erro": "dificuldade",
-            
-            # Add encouragement
-            "entrar em contato": "entrar em contato - estamos aqui para ajudar! 💪",
-            "aguardar": "aguardar - logo retornaremos",
+        # Language-specific adjustments and closings
+        self.adjustments_by_lang = {
+            "pt": {
+                # Make more friendly
+                "Olá": "Oi! 👋",
+                "Prezado": "Oi",
+                "Senhor(a)": "Você",
+                # Add empathy
+                "não consigo": "não conseguir",
+                "problema": "situação",
+                "erro": "dificuldade",
+                # Add encouragement
+                "entrar em contato": "entrar em contato - estamos aqui para ajudar! 💪",
+                "aguardar": "aguardar - logo retornaremos",
+            },
+            "en": {
+                # Light-touch, avoid over-editing English content
+                "issue": "situation",
+                "problem": "situation",
+                "error": "difficulty",
+            },
+        }
+
+        self.closing_by_lang = {
+            "pt": "Conte comigo! 😊",
+            "en": "Here for you! 😊",
         }
     
     def adjust_response(self, response: str, context: Optional[Dict] = None, lang: str = "pt") -> str:
@@ -45,8 +56,13 @@ class PersonalityLayer:
             return response
         
         try:
-            # Apply basic adjustments
-            adjusted = self._apply_adjustments(response)
+            # Normalize target language (use explicit lang, else locale prefix)
+            target_lang = (lang or self.locale or "pt").split("-")[0]
+            if target_lang not in self.adjustments_by_lang:
+                target_lang = "pt"
+
+            # Apply basic adjustments for the specific language
+            adjusted = self._apply_adjustments(response, target_lang)
             
             # Add contextual improvements
             if context:
@@ -54,6 +70,9 @@ class PersonalityLayer:
             
             # Ensure proper formatting
             adjusted = self._format_response(adjusted)
+
+            # Ensure a closing in the correct language only
+            adjusted = self._ensure_language_specific_closing(adjusted, target_lang)
             
             return adjusted
             
@@ -61,17 +80,11 @@ class PersonalityLayer:
             logger.error(f"Error adjusting response tone: {e}")
             return response  # Return original on error
     
-    def _apply_adjustments(self, text: str) -> str:
-        """Apply basic tone adjustments."""
+    def _apply_adjustments(self, text: str, lang: str) -> str:
+        """Apply basic tone adjustments for a given language."""
         adjusted = text
-        
-        for old, new in self.adjustments.items():
+        for old, new in self.adjustments_by_lang.get(lang, {}).items():
             adjusted = adjusted.replace(old, new)
-        
-        # Add friendly closings if not present
-        if not any(closing in adjusted for closing in ["Obrigado", "Atenciosamente", "Um abraço"]):
-            adjusted += "\n\nConte comigo! 😊"
-        
         return adjusted
     
     def _add_contextual_tone(self, text: str, context: Dict) -> str:
@@ -113,6 +126,15 @@ class PersonalityLayer:
             result += '.'
         
         return result
+
+    def _ensure_language_specific_closing(self, text: str, lang: str) -> str:
+        """Append a language-appropriate closing if none is present."""
+        # Check for common closings in both languages to avoid duplicates
+        known_closings = set(self.closing_by_lang.values()) | {"Obrigado", "Atenciosamente", "Um abraço", "Thank you", "Best regards"}
+        if any(k in text for k in known_closings):
+            return text
+        closing = self.closing_by_lang.get(lang, self.closing_by_lang["pt"])  # default to pt if unknown
+        return f"{text}\n\n{closing}"
     
     def is_enabled(self) -> bool:
         """Check if personality layer is enabled."""
