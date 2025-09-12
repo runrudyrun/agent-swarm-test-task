@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain.schema import BaseMessage, HumanMessage, SystemMessage
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 
 from rag.config import RAGConfig, get_embeddings
 
@@ -72,23 +72,44 @@ FORMATO DAS RESPOSTAS:
             logger.warning(f"Failed to load vector store: {e}")
             self.vectorstore = None
     
-    def _create_qa_prompt(self) -> PromptTemplate:
+    def _create_qa_prompt(self, lang: str = "pt") -> PromptTemplate:
         """Create QA prompt template."""
-        template = """Você é um assistente de conhecimento da InfinitePay. Use as seguintes informações do contexto para responder à pergunta do usuário.
+        if lang.startswith("en"):
+            template = """You are a knowledgeable and friendly assistant for InfinitePay. Your goal is to provide clear and helpful answers based on the information available to you.
 
+Here's some information that might be relevant:
+CONTEXT:
+{context}
+
+Based on that, please answer the following question:
+QUESTION: {question}
+
+INSTRUCTIONS:
+1. Answer in a natural, conversational way. Avoid phrases like "based on the context."
+2. If the information isn't in the context, say you don't have that specific detail and suggest checking the official website or contacting support.
+3. Provide detailed but concise answers.
+4. Use markdown for readability and appropriate emojis to be friendly.
+5. Always cite the sources (URLs) when available.
+6. Respond in English.
+
+ANSWER:"""
+        else:  # Default to Portuguese
+            template = """Você é um assistente da InfinitePay, especialista em ajudar clientes com informações sobre nossos produtos e serviços. Seu objetivo é fornecer respostas claras e úteis.
+
+Aqui estão algumas informações que podem ser úteis:
 CONTEXTO:
 {context}
 
+Com base nisso, por favor, responda à seguinte pergunta:
 PERGUNTA: {question}
 
 INSTRUÇÕES:
-1. Responda APENAS com base nas informações do contexto acima
-2. Se a informação não estiver disponível no contexto, diga claramente que não tem essa informação
-3. Forneça respostas detalhadas mas concisas
-4. Use formato markdown para melhor legibilidade
-5. Inclua URLs das fontes quando mencionar produtos ou serviços
-6. Responda sempre em português do Brasil
-7. Use emojis apropriados para tornar a resposta mais amigável
+1. Responda de forma natural e conversacional. Evite frases como "com base no contexto".
+2. Se a informação não estiver disponível no contexto, diga que não possui esse detalhe específico e sugira consultar o site oficial ou o suporte.
+3. Forneça respostas detalhadas, mas concisas.
+4. Use markdown para legibilidade e emojis apropriados para um tom amigável.
+5. Sempre cite as fontes (URLs) quando disponíveis.
+6. Responda em português.
 
 RESPOSTA:"""
         
@@ -97,9 +118,9 @@ RESPOSTA:"""
             input_variables=["context", "question"]
         )
     
-    def process_query(self, query: str) -> Dict:
+    def process_query(self, query: str, lang: str = "pt") -> Dict:
         """Process a knowledge query and return response."""
-        logger.info(f"KnowledgeAgent processing query: {query}")
+        logger.info(f"KnowledgeAgent processing query: {query} (lang: {lang})")
         
         try:
             # Check if vector store has content
@@ -131,7 +152,7 @@ RESPOSTA:"""
                 retriever=retriever,
                 return_source_documents=True,
                 chain_type_kwargs={
-                    "prompt": self._create_qa_prompt()
+                    "prompt": self._create_qa_prompt(lang=lang)
                 }
             )
             

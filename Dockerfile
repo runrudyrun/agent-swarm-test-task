@@ -27,8 +27,7 @@ WORKDIR /app
 
 # Copy and install Python dependencies first (for better caching)
 COPY pyproject.toml ./
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install fastapi uvicorn pydantic python-dotenv httpx beautifulsoup4 lxml numpy openai langchain langchain-community langchain-openai pytest pytest-asyncio chromadb sentence-transformers || true
+RUN pip install --upgrade pip setuptools wheel && pip install .
 
 # Copy application code
 COPY --chown=appuser:appuser . .

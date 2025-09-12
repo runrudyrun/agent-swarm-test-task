@@ -44,9 +44,36 @@ class SupportAgent:
             )
         ]
     
-    def _create_system_prompt(self) -> str:
+    def _create_system_prompt(self, lang: str = "pt") -> str:
         """Create system prompt for the support agent."""
-        return """Você é um assistente de suporte ao cliente da InfinitePay, especializado em ajudar usuários com questões relacionadas às suas contas e transações.
+        if lang.startswith("en"):
+            return """You are a customer support assistant for InfinitePay, specializing in helping users with account and transaction-related issues.
+
+YOUR RESPONSIBILITIES:
+1. Provide clear and accurate information about accounts and transactions.
+2. Help users understand their data and resolve issues.
+3. Create support tickets when necessary.
+4. Always respond in English.
+5. Maintain a professional, yet friendly and empathetic tone.
+
+AVAILABLE TOOLS:
+- get_account_details: Get user account details (balance, status, registration info).
+- get_recent_transactions: Get recent transaction history.
+- open_support_ticket: Create a new support ticket.
+
+IMPORTANT GUIDELINES:
+- ALWAYS check if a user_id is available before using tools.
+- If user_id is missing, politely ask the user for it.
+- For technical or complex issues, create a ticket.
+- Be proactive in offering additional help.
+- Use appropriate emojis to make the communication friendlier.
+
+RESPONSE EXAMPLES:
+✅ "Of course! I can help you with your account statement. What is your user ID?"
+✅ "Checking your recent transactions..."
+❌ "I can't help" (without explanation)"""
+        else: # Default to Portuguese
+            return """Você é um assistente de suporte ao cliente da InfinitePay, especializado em ajudar usuários com questões relacionadas às suas contas e transações.
 
 SUAS RESPONSABILIDADES:
 1. Fornecer informações claras e precisas sobre contas e transações
@@ -72,14 +99,18 @@ EXEMPLOS DE RESPOSTAS:
 ✅ "Verificando suas transações recentes..."
 ❌ "Não posso ajudar" (sem explicação)"""
     
-    def process_query(self, query: str, user_id: Optional[str] = None) -> Dict:
+    def process_query(self, query: str, user_id: Optional[str] = None, lang: str = "pt") -> Dict:
         """Process a support query and return response."""
         logger.info(f"SupportAgent processing query: {query}")
         
         # Check if user_id is required but not provided
         if not user_id and self._requires_user_id(query):
+            if lang.startswith("en"):
+                answer = "Hi! 👋 To help you with your account information, I need your user ID. You can find it in your profile or in emails from InfinitePay. What is your ID?"
+            else:
+                answer = "Olá! 👋 Para ajudar você com informações da sua conta, preciso do seu ID de usuário. Você pode encontrá-lo em seu perfil ou e-mails da InfinitePay. Qual é o seu ID?"
             return {
-                "answer": "Olá! 👋 Para ajudar você com informações da sua conta, preciso do seu ID de usuário. Você pode encontrá-lo em seu perfil ou e-mails da InfinitePay. Qual é o seu ID?",
+                "answer": answer,
                 "agent_used": "support",
                 "tool_used": None,
                 "requires_user_id": True
@@ -112,7 +143,7 @@ EXEMPLOS DE RESPOSTAS:
                     "requires_user_id": False
                 }
         
-        elif any(word in query.lower() for word in ["suporte", "ajuda", "problema", "ticket", "assistência"]):
+        elif any(word in query.lower() for word in ["suporte", "ajuda", "problema", "ticket", "assistência", "help", "problem"]):
             # Try to extract subject and description from query
             subject, description = self._extract_ticket_info(query)
             
@@ -125,22 +156,26 @@ EXEMPLOS DE RESPOSTAS:
                     "requires_user_id": False
                 }
             else:
+                if lang.startswith("en"):
+                    answer = "I can help you create a support ticket! 🎫\n\nTo log your issue, I need:\n1. A brief subject (e.g., 'Problem with card machine')\n2. A detailed description of the problem\n\nPlease tell me what issue you are facing."
+                else:
+                    answer = "Posso ajudar você a criar um ticket de suporte! 🎫\n\nPara registrar seu problema, preciso de:\n1. Um breve assunto (ex: 'Problema com maquininha')\n2. Descrição detalhada do problema\n\nPor favor, me diga qual é o problema que você está enfrentando."
                 return {
-                    "answer": "Posso ajudar você a criar um ticket de suporte! 🎫\n\nPara registrar seu problema, preciso de:\n1. Um breve assunto (ex: 'Problema com maquininha')\n2. Descrição detalhada do problema\n\nPor favor, me diga qual é o problema que você está enfrentando.",
+                    "answer": answer,
                     "agent_used": "support",
                     "tool_used": None,
                     "requires_user_id": user_id is None
                 }
         
         # Default response for unclear queries - enhanced with LLM
-        return self._handle_general_support_query(query, user_id)
+        return self._handle_general_support_query(query, user_id, lang=lang)
     
     def _get_llm(self):
         """Get LLM instance for intelligent responses."""
         from rag.config import create_llm
         return create_llm()
     
-    def _handle_general_support_query(self, query: str, user_id: Optional[str]) -> Dict:
+    def _handle_general_support_query(self, query: str, user_id: Optional[str], lang: str = "pt") -> Dict:
         """Handle general support queries with intelligent responses."""
         try:
             # Use LLM to provide a more intelligent response for support queries
@@ -168,8 +203,12 @@ EXEMPLOS DE RESPOSTAS:
         except Exception as e:
             logger.warning(f"LLM general support failed: {e}")
             # Fallback to generic response
+            if lang.startswith("en"):
+                answer = "I understand you're facing difficulties. I can help you with:\n\n💰 **Account data** - balance, registration information\n📊 **Transactions** - history of payments and withdrawals\n🎫 **Support** - create tickets for issues\n\nHow can I best help you today? If you need specific account information, please provide your user ID."
+            else:
+                answer = "Entendo que você está enfrentando dificuldades. Posso ajudar você com:\n\n💰 **Dados da conta** - saldo, informações cadastrais\n📊 **Transações** - histórico de pagamentos e saques\n🎫 **Suporte** - criar tickets para problemas\n\nQual seria a melhor forma de ajudar você hoje? Se precisar de informações específicas da conta, me diga seu ID de usuário."
             return {
-                "answer": "Entendo que você está enfrentando dificuldades. Posso ajudar você com:\n\n💰 **Dados da conta** - saldo, informações cadastrais\n📊 **Transações** - histórico de pagamentos e saques\n🎫 **Suporte** - criar tickets para problemas\n\nQual seria a melhor forma de ajudar você hoje? Se precisar de informações específicas da conta, me diga seu ID de usuário.",
+                "answer": answer,
                 "agent_used": "support",
                 "tool_used": None,
                 "requires_user_id": False
@@ -209,6 +248,6 @@ EXEMPLOS DE RESPOSTAS:
         """Get available tools."""
         return self.tools
     
-    def get_system_message(self) -> SystemMessage:
+    def get_system_message(self, lang: str = "pt") -> SystemMessage:
         """Get system message for LLM integration."""
-        return SystemMessage(content=self.system_prompt)
+        return SystemMessage(content=self._create_system_prompt(lang=lang))

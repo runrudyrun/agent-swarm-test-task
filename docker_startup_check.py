@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def check_vector_store_compatibility():
     """Check if vector store is compatible with current embedding configuration."""
     try:
-        from langchain_community.vectorstores import Chroma
+        from langchain_chroma import Chroma
         from rag.config import RAGConfig, get_embeddings
         
         logger.info("Checking vector store compatibility...")

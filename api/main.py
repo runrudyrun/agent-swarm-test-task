@@ -117,12 +117,15 @@ async def process_query(request: QueryRequest):
         
         # Route query to appropriate agent
         result = router_agent.route_query(request.message, request.user_id)
+        result["lang"] = result.get("lang", "pt")
         
         # Apply personality layer if enabled
         if personality_layer.is_enabled():
+            lang = result.get("lang", "pt")
             result["answer"] = personality_layer.adjust_response(
                 result["answer"],
-                context=result
+                context=result,
+                lang=lang
             )
         
         # Create response

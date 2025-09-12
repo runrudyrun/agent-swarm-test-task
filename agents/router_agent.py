@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Dict, List, Optional, Tuple
 
+
 from agents.knowledge_agent import KnowledgeAgent
 from agents.support_agent import SupportAgent
 
@@ -188,20 +189,29 @@ REASON: <brief explanation>'''
         
         return primary_intent, confidence
     
-    def route_query(self, query: str, user_id: Optional[str] = None) -> Dict:
+    def route_query(self, query: str, user_id: Optional[str] = None, lang: Optional[str] = None) -> Dict:
         """Route query to appropriate agent and return response."""
         logger.info(f"RouterAgent processing query: {query}")
-        
+
+        # Detect language if not provided
+        if lang is None:
+            try:
+                from langdetect import detect, LangDetectException
+                lang = detect(query)
+            except LangDetectException:
+                lang = "pt"  # Default to Portuguese if detection fails
+            logger.info(f"Detected language: {lang}")
+
         # Check for multi-intent queries
         sub_queries = self._split_multi_intent(query)
-        
+
         if len(sub_queries) > 1:
-            return self._handle_multi_intent(sub_queries, user_id)
-        
+            return self._handle_multi_intent(sub_queries, user_id, lang)
+
         # Single intent - classify and route
         intent, confidence = self.classify_intent(query)
         logger.info(f"Classified intent: {intent} (confidence: {confidence})")
-        
+
         # Route based on intent
         if intent == "escalate":
             return {
@@ -211,38 +221,38 @@ REASON: <brief explanation>'''
                 "confidence": confidence,
                 "handoff_to_human": True
             }
-        
+
         elif intent == "support":
             # Route to support agent
-            support_response = self.support_agent.process_query(query, user_id)
+            support_response = self.support_agent.process_query(query, user_id, lang=lang)
             support_response.update({
                 "intent": intent,
                 "confidence": confidence
             })
             return support_response
-        
+
         elif intent == "knowledge":
             # Route to knowledge agent
-            knowledge_response = self.knowledge_agent.process_query(query)
+            knowledge_response = self.knowledge_agent.process_query(query, lang=lang)
             knowledge_response.update({
                 "intent": intent,
                 "confidence": confidence
             })
             return knowledge_response
-        
+
         else:  # unknown intent
             # Try knowledge agent first (broader scope)
             if self.knowledge_agent.is_available():
-                knowledge_response = self.knowledge_agent.process_query(query)
+                knowledge_response = self.knowledge_agent.process_query(query, lang=lang)
                 if knowledge_response.get("confidence", 0) > 0.3:
                     knowledge_response.update({
                         "intent": "knowledge",
                         "confidence": confidence * 0.8
                     })
                     return knowledge_response
-            
+
             # Fallback to support agent
-            support_response = self.support_agent.process_query(query, user_id)
+            support_response = self.support_agent.process_query(query, user_id, lang=lang)
             support_response.update({
                 "intent": "support",
                 "confidence": confidence * 0.8
@@ -312,14 +322,15 @@ REASON: <brief explanation>'''
         
         return sub_queries if sub_queries else [query]
     
-    def _handle_multi_intent(self, sub_queries: List[str], user_id: Optional[str]) -> Dict:
+    def _handle_multi_intent(self, sub_queries: List[str], user_id: Optional[str], lang: str) -> Dict:
         """Handle multi-intent queries by processing each sub-query."""
         responses = []
         agents_used = []
         total_confidence = 0
         
         for sub_query in sub_queries:
-            result = self.route_query(sub_query, user_id)
+            # Pass the language down in the recursive call
+            result = self.route_query(sub_query, user_id, lang=lang)
             responses.append(result.get("answer", ""))
             agents_used.append(result.get("agent_used", "unknown"))
             total_confidence += result.get("confidence", 0)

@@ -4,7 +4,8 @@ import os
 from typing import List
 
 from langchain.embeddings.base import Embeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 
 def get_llm_config():

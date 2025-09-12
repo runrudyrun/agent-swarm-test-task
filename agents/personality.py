@@ -39,7 +39,7 @@ class PersonalityLayer:
             "aguardar": "aguardar - logo retornaremos",
         }
     
-    def adjust_response(self, response: str, context: Optional[Dict] = None) -> str:
+    def adjust_response(self, response: str, context: Optional[Dict] = None, lang: str = "pt") -> str:
         """Adjust response tone if personality is enabled."""
         if not self.enabled:
             return response
