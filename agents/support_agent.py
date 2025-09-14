@@ -426,13 +426,27 @@ IMPORTANT GUIDELINES:
             subject, description = self._extract_ticket_info(query)
             
             if user_id and subject and description:
-                ticket_result = open_support_ticket(user_id, subject, description)
-                return {
-                    "answer": ticket_result,
-                    "agent_used": "support",
-                    "tool_used": "open_support_ticket",
-                    "requires_user_id": False
-                }
+                # Create ticket via store and localize confirmation
+                store = UserStore()
+                ticket = store.create_support_ticket(user_id, subject, description)
+                if ticket:
+                    if lang.startswith("en"):
+                        answer = (
+                            "✅ Ticket created successfully!\n"
+                            f"Ticket ID: {ticket['id']}\n"
+                            f"Subject: {ticket['subject']}\n"
+                            f"Priority: {ticket['priority'].title()}\n"
+                            f"Status: {ticket['status'].title()}\n"
+                            "Our support team will contact you shortly."
+                        )
+                    else:
+                        answer = open_support_ticket(user_id, subject, description)
+                    return {
+                        "answer": answer,
+                        "agent_used": "support",
+                        "tool_used": "open_support_ticket",
+                        "requires_user_id": False
+                    }
             else:
                 answer_map = {
                     "en": "I can help you create a support ticket! 🎫\n\nTo log your issue, I need:\n1. A brief subject (e.g., 'Problem with card machine')\n2. A detailed description of the problem\n\nPlease tell me what issue you are facing.",

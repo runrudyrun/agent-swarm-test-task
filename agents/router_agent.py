@@ -216,8 +216,19 @@ REASON: <brief explanation>'''
 
         # Route based on intent
         if intent == "escalate":
+            # Localize escalation message by language
+            if lang and lang.split('-')[0] == "en":
+                esc_msg = (
+                    "I understand this might be urgent or complex. I’ll connect you with a human agent who can help further. "
+                    "Please hold on a moment... 🔄"
+                )
+            else:
+                esc_msg = (
+                    "Entendo que sua solicitação pode ser urgente ou complexa. Vou encaminhar você para um atendente humano "
+                    "que poderá ajudar melhor. Por favor, aguarde um momento... 🔄"
+                )
             return {
-                "answer": "Entendo que sua solicitação pode ser urgente ou complexa. Vou encaminhar você para um atendente humano que poderá ajudar melhor. Por favor, aguarde um momento... 🔄",
+                "answer": esc_msg,
                 "agent_used": "router",
                 "intent": intent,
                 "confidence": confidence,
