@@ -65,7 +65,7 @@ class RouterAgent:
         # Multi-intent split patterns
         self.split_patterns = [
             r"\be\b", r"\b[eé]\s+também\b", r"\balém\s+disso\b", r"\boutra\s+coisa\b",
-            r"\bs?\b", r"\bporém\b", r"\bmas\b", r"\bentretanto\b"
+            r"\bporém\b", r"\bmas\b", r"\bentretanto\b"
         ]
     
     def classify_intent(self, query: str) -> Tuple[str, float]:
@@ -342,10 +342,12 @@ REASON: <brief explanation>'''
             agents_used.append(result.get("agent_used", "unknown"))
             total_confidence += result.get("confidence", 0)
         
-        # Combine responses
-        combined_answer = "🎯 **Resposta para suas perguntas:**\n\n"
+        # Combine responses (localized header and item label)
+        header = "🎯 **Answers to your questions:**" if lang and lang.split('-')[0] == "en" else "🎯 **Resposta para suas perguntas:**"
+        item_label = "About" if lang and lang.split('-')[0] == "en" else "Sobre"
+        combined_answer = f"{header}\n\n"
         for i, (query, response) in enumerate(zip(sub_queries, responses)):
-            combined_answer += f"**{i+1}. Sobre: {query}**\n{response}\n\n"
+            combined_answer += f"**{i+1}. {item_label}: {query}**\n{response}\n\n"
         
         avg_confidence = total_confidence / len(sub_queries) if sub_queries else 0
         

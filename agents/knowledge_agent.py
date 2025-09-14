@@ -1,6 +1,7 @@
 """Knowledge Agent with RAG capabilities for InfinitePay content."""
 
 import logging
+import re
 from typing import Dict, List, Optional
 
 from langchain.chains import RetrievalQA
@@ -95,6 +96,7 @@ INSTRUCTIONS:
 4.  **Context Usage**: Base your answer strictly on the CONTEXT provided. Do not use prior knowledge.
 5.  **No Information**: If the CONTEXT does not contain the answer, state that you don't have that specific information and suggest contacting InfinitePay support or visiting the official website.
 6.  **Citations**: When you use information from the context, cite the sources provided.
+7.  **Do NOT mention 'CONTEXT'**: Do not write phrases like '(Source: CONTEXT)' or otherwise mention the word 'CONTEXT' in your answer. Only the system will append a Sources/Fontes list with real links.
 
 ANSWER:"""
         
@@ -146,6 +148,8 @@ ANSWER:"""
             
             # Extract answer and sources
             answer = result.get("result", "Desculpe, não consegui processar sua pergunta.")
+            # Sanitize accidental leakage of the word 'CONTEXT' in the answer body
+            answer = self._sanitize_answer_text(answer)
             source_docs = result.get("source_documents", [])
             
             # Check if we got meaningful content
@@ -160,7 +164,8 @@ ANSWER:"""
             
             # Add sources to the answer only if the answer is not a refusal
             if sources and not self._is_answer_insufficient(answer):
-                answer += f"\n\n📚 **Fontes:**\n" + "\n".join(sources)
+                label = "Sources" if lang.split('-')[0] == "en" else "Fontes"
+                answer += f"\n\n📚 **{label}:**\n" + "\n".join(sources)
             
             return {
                 "answer": answer,
@@ -307,6 +312,15 @@ ANSWER:"""
         """Get LLM instance based on configuration."""
         from rag.config import create_llm
         return create_llm()
+
+    def _sanitize_answer_text(self, text: str) -> str:
+        """Remove scaffolding leakage like '(Source: CONTEXT)' from LLM outputs."""
+        try:
+            # Remove variants like '(Source: CONTEXT)', '(source: context)', 'Source: CONTEXT'
+            pattern = r"\s*\(?\s*(?:source|sources|fonte|fontes)\s*:\s*context\s*\)?"
+            return re.sub(pattern, "", text, flags=re.IGNORECASE)
+        except Exception:
+            return text
     
     def is_available(self) -> bool:
         """Check if knowledge agent is available (vector store loaded)."""
