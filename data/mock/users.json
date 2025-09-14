@@ -105,6 +105,51 @@
       "status": "open",
       "priority": "medium",
       "created_at": "2025-09-14T17:03:23.010351"
+    },
+    {
+      "id": "ticket004",
+      "user_id": "user123",
+      "subject": "Card reader shows E101 error and restarts daily",
+      "description": "Card reader displays error E101 during payment attempts; screen freezes and the device restarts, interrupting transactions. Issue occurs every day. USER_ID: user123. User requested high priority.",
+      "status": "open",
+      "priority": "medium",
+      "created_at": "2025-09-14T17:27:07.118038"
+    },
+    {
+      "id": "ticket005",
+      "user_id": "user123",
+      "subject": "Printer error E103, stops every hour",
+      "description": "POS printer fails intermittently and stops approximately every hour. System logs record error code E103. Issue is observed daily and impacts transaction processing.",
+      "status": "open",
+      "priority": "medium",
+      "created_at": "2025-09-14T17:38:54.570946"
+    },
+    {
+      "id": "ticket006",
+      "user_id": "user123",
+      "subject": "Payment terminal crashes and E101 error",
+      "description": "The payment card machine repeatedly crashes during transactions and intermittently displays error code E101 when processing payments, preventing successful transactions.",
+      "status": "open",
+      "priority": "medium",
+      "created_at": "2025-09-14T17:40:53.301481"
+    },
+    {
+      "id": "ticket007",
+      "user_id": "user123",
+      "subject": "Card reader freezing and E101 error during checkout",
+      "description": "Card reader keeps freezing during checkout and intermittently displays error code E101. User reports issue while processing payments; no additional details provided.",
+      "status": "open",
+      "priority": "medium",
+      "created_at": "2025-09-14T18:22:58.002207"
+    },
+    {
+      "id": "ticket008",
+      "user_id": "user123",
+      "subject": "E101 crashes",
+      "description": "User reports crashes with error code E101; no further details provided.",
+      "status": "open",
+      "priority": "medium",
+      "created_at": "2025-09-14T18:34:39.649961"
     }
   ]
 }

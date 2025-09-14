@@ -10,6 +10,9 @@ services:
       - LOG_LEVEL=INFO
       - PERSONALITY=on
       - LOCALE=pt-BR
+      - TICKET_LLM_TRIAGE=1
+      - SUPPORT_WEBHOOK_URL=
+      - SUPPORT_WEBHOOK_TOKEN=
       - MODEL_PROVIDER=${MODEL_PROVIDER:-local}
       - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-local}
       - VECTOR_STORE=chroma

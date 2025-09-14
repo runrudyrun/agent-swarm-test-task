@@ -1,6 +1,8 @@
 """Customer Support Agent with access to user data tools."""
 
 import logging
+import os
+import json
 from typing import Dict, List, Optional
 
 from langchain.agents import Tool
@@ -14,6 +16,7 @@ from tools.user_store import (
     open_support_ticket,
     UserStore,
 )
+from tools.ticket_sink import post_ticket
 
 logger = logging.getLogger(__name__)
 
@@ -423,21 +426,70 @@ IMPORTANT GUIDELINES:
         
         elif any(word in query.lower() for word in ["suporte", "ajuda", "problema", "ticket", "assistência", "help", "problem"]):
             # Try to extract subject and description from query
-            subject, description = self._extract_ticket_info(query)
+            subject, description = None, None
+            use_llm = os.getenv("TICKET_LLM_TRIAGE", "0") == "1"
+            triaged = None
+            if use_llm:
+                triaged = self._triage_ticket_with_llm(query, user_id=user_id, lang=lang)
+                if triaged:
+                    subject = triaged.get("subject")
+                    description = triaged.get("description")
+                    # Log triage summary to aid debugging/observability
+                    logger.info(
+                        "Ticket triage result: subject='%s', severity='%s', category='%s', error_code='%s', product='%s', model='%s', timeframe='%s'",
+                        (subject or "")[:80],
+                        triaged.get("severity", ""),
+                        triaged.get("category", ""),
+                        triaged.get("error_code", ""),
+                        triaged.get("product", ""),
+                        triaged.get("device_model", ""),
+                        triaged.get("timeframe", ""),
+                    )
+            if not subject or not description:
+                subject, description = self._extract_ticket_info(query)
             
             if user_id and subject and description:
                 # Create ticket via store and localize confirmation
                 store = UserStore()
                 ticket = store.create_support_ticket(user_id, subject, description)
                 if ticket:
+                    # Log local ticket creation details
+                    logger.info(
+                        "Ticket created: local_id=%s user_id=%s subject='%s'",
+                        ticket.get("id"), user_id, (ticket.get("subject", "")[:80])
+                    )
+                    # Optionally post to external sink (webhook)
+                    remote_info = None
+                    try:
+                        payload = {
+                            "user_id": user_id,
+                            "subject": subject,
+                            "description": description,
+                            "triage": triaged or {},
+                            "local_ticket_id": ticket["id"],
+                        }
+                        remote_info = post_ticket(payload)
+                    except Exception as e:
+                        logger.warning(f"Ticket sink post failed: {e}")
+                    else:
+                        if remote_info:
+                            logger.info(
+                                "Ticket sink post: local_id=%s remote_id=%s status=%s",
+                                ticket.get("id"),
+                                remote_info.get("remote_id"),
+                                remote_info.get("status"),
+                            )
+
                     if lang.startswith("en"):
+                        extra = (
+                            f"\nExternal Ref: {remote_info.get('remote_id')}" if remote_info and remote_info.get("remote_id") else ""
+                        )
                         answer = (
                             "✅ Ticket created successfully!\n"
                             f"Ticket ID: {ticket['id']}\n"
                             f"Subject: {ticket['subject']}\n"
-                            f"Priority: {ticket['priority'].title()}\n"
                             f"Status: {ticket['status'].title()}\n"
-                            "Our support team will contact you shortly."
+                            f"Our support team will contact you shortly.{extra}"
                         )
                     else:
                         answer = open_support_ticket(user_id, subject, description)
@@ -464,9 +516,66 @@ IMPORTANT GUIDELINES:
         return self._handle_general_support_query(query, user_id, lang=lang)
     
     def _get_llm(self):
-        """Get LLM instance for intelligent responses."""
+        """Get LLM instance based on configuration."""
         from rag.config import create_llm
         return create_llm()
+
+    def _triage_ticket_with_llm(self, query: str, user_id: Optional[str], lang: str = "pt") -> Optional[Dict]:
+        """Use the LLM to extract a structured ticket from free-form text.
+        Returns a dict with at least 'subject' and 'description' on success; None on failure.
+        """
+        try:
+            llm = self._get_llm()
+
+            language_map = {"en": "English", "pt": "Portuguese"}
+            output_language = language_map.get(lang.split('-')[0], "Portuguese")
+
+            system_prompt = (
+                "You are a ticket triage assistant. Extract a structured ticket from the user's message. "
+                "Respond ONLY with valid minified JSON and nothing else. Keys: "
+                "{\"subject\": str, \"description\": str, \"category\": str, \"severity\": str, "
+                "\"product\": str, \"device_model\": str, \"error_code\": str, \"repro_steps\": str, "
+                "\"environment\": str, \"timeframe\": str, \"attachments\": [str], \"language_detected\": str}. "
+                "Severity must be one of: P1, P2, P3, P4 (default P3). Use concise strings."
+            )
+
+            human_prompt = (
+                f"USER_ID: {user_id or 'unknown'}\n"
+                f"LANG_HINT: {output_language}\n"
+                f"MESSAGE: {query}"
+            )
+
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=human_prompt),
+            ]
+
+            response = llm.invoke(messages)
+            content = (response.content or "").strip()
+
+            # Must be valid JSON only
+            data = json.loads(content)
+            if not isinstance(data, dict):
+                return None
+            subject = (data.get("subject") or "").strip()
+            description = (data.get("description") or "").strip()
+            if not subject or not description:
+                return None
+            # Normalize optional fields
+            data.setdefault("category", "support")
+            data.setdefault("severity", "P3")
+            data.setdefault("product", "")
+            data.setdefault("device_model", "")
+            data.setdefault("error_code", "")
+            data.setdefault("repro_steps", "")
+            data.setdefault("environment", "")
+            data.setdefault("timeframe", "")
+            data.setdefault("attachments", [])
+            data.setdefault("language_detected", lang)
+            return data
+        except Exception as e:
+            logger.warning(f"LLM ticket triage failed: {e}")
+            return None
     
     def _handle_general_support_query(self, query: str, user_id: Optional[str], lang: str = "pt") -> Dict:
         """Handle general support queries with intelligent responses."""

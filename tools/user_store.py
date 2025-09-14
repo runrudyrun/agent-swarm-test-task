@@ -242,7 +242,6 @@ def open_support_ticket(user_id: str, subject: str, description: str) -> str:
 
 **ID do Ticket:** {ticket['id']}
 **Assunto:** {ticket['subject']}
-**Prioridade:** {ticket['priority'].title()}
 **Status:** {ticket['status'].title()}
 
 Nossa equipe de suporte entrará em contato em breve.

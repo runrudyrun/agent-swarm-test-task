@@ -211,6 +211,31 @@ REASON: <brief explanation>'''
             return self._handle_multi_intent(sub_queries, user_id, lang)
 
         # Single intent - classify and route
+        # Deterministic override: explicit ticket intent should go to Support
+        ql = query.lower()
+        if (
+            any(
+                kw in ql
+                for kw in [
+                    "create support ticket",
+                    "open ticket",
+                    "file a ticket",
+                    "support ticket",
+                    "abrir chamado",
+                    "abrir ticket",
+                    "criar chamado",
+                ]
+            )
+            or ("subject:" in ql and "description:" in ql)
+        ):
+            support_response = self.support_agent.process_query(query, user_id, lang=lang)
+            support_response.update({
+                "intent": "support",
+                "confidence": 0.95,
+                "lang": lang,
+            })
+            return support_response
+
         intent, confidence = self.classify_intent(query)
         logger.info(f"Classified intent: {intent} (confidence: {confidence})")
 
