@@ -66,7 +66,12 @@ cp .env.example .env
 
 3. Run with Docker Compose:
 ```bash
-docker-compose up -d
+docker compose up -d
+```
+
+Tip: for troubleshooting, you can run in the foreground to stream logs:
+```bash
+docker compose up
 ```
 
 ## 🏃‍♂️ Usage
@@ -80,7 +85,7 @@ uvicorn api.main:app --reload
 
 **Docker:**
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Test the API
@@ -103,6 +108,7 @@ curl -X POST "http://localhost:8000/query" \
 **API Documentation:**
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
+- Capabilities: http://localhost:8000/capabilities
 
 ## 📊 Architecture
 
@@ -111,7 +117,7 @@ curl -X POST "http://localhost:8000/query" \
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Router Agent  │───▶│ Knowledge Agent │───▶│   Vector Store  │
-│  (Classification)│    │    (RAG)        │    │   (ChromaDB)    │
+│  (Classification)│    │    (RAG)        │    │    (Chroma)     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
         │                       │
         ▼                       ▼
@@ -166,11 +172,14 @@ pytest tests/test_api_e2e.py
 | `OPENAI_API_KEY` | OpenAI API key | - | string |
 | `OPENAI_MODEL` | OpenAI model | `gpt-5-mini-2025-08-07` | `gpt-5-2025-08-07`, `gpt-5-mini-2025-08-07`, `gpt-5-nano-2025-08-07`, `gpt-4o`, `gpt-4o-mini` |
 | `EMBEDDINGS_PROVIDER` | Embeddings provider | `local` | `local`, `openai` |
-| `VECTOR_STORE` | Vector store | `chroma` | `chroma`, `faiss` |
+| `VECTOR_STORE` | Vector store | `chroma` | `chroma` |
 | `LOCALE` | Language/locale | `pt-BR` | `pt-BR` |
 | `PERSONALITY` | Personality layer | `on` | `on`, `off` |
 | `PORT` | Server port | `8000` | 1-65535 |
 | `LOG_LEVEL` | Log level | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `SUPPORT_WEBHOOK_URL` | External ticket sink webhook URL (optional) | - | URL |
+| `SUPPORT_WEBHOOK_TOKEN` | Bearer token for the webhook (optional) | - | string |
+| `TICKET_LLM_TRIAGE` | Enable LLM-based ticket triage (optional) | `1` | `0`, `1` |
 
 ### Development Settings
 
@@ -184,11 +193,31 @@ docker compose --profile dev up -d
 docker compose --profile openai up -d
 ```
 
+Troubleshooting tip: if a container crashes or you need to inspect startup issues, prefer running without `-d` to stream logs live:
+```bash
+docker compose up
+```
+
 ## 🔍 Data Ingestion (RAG)
 
 ### Run Ingestion
 ```bash
 python -m rag.ingest
+```
+
+### Run Ingestion (inside Docker)
+```bash
+docker compose exec agent-swarm python -m rag.ingest
+```
+
+### Re-index using OpenAI embeddings (optional)
+Requires `MODEL_PROVIDER=openai`, `EMBEDDINGS_PROVIDER=openai` and a valid `OPENAI_API_KEY`.
+```bash
+# Locally
+python -m rag.reindex_openai
+
+# Or inside Docker (OpenAI profile)
+docker compose --profile openai run --rm agent-swarm-openai python -m rag.reindex_openai
 ```
 
 ### Processed URLs
@@ -277,7 +306,8 @@ agent-swarm-test-task/
 │   └── ingest.py          # Data ingestion
 ├── tools/                  # Agent tools
 │   ├── user_store.py      # Mock user data
-│   └── web_search.py      # Web search (optional)
+│   ├── web_search.py      # Web search (optional)
+│   └── ticket_sink.py     # Optional outbound ticket webhook
 ├── tests/                  # Test suite
 ├── data/                   # Data storage
 │   ├── raw/               # Raw scraped content
@@ -319,9 +349,14 @@ Edit patterns in `agents/router_agent.py`.
 - Check file permissions
 
 **2. Agents not responding:**
-- Check logs: `docker-compose logs agent-swarm`
+- Check logs (stream): `docker compose logs -f agent-swarm`
 - Test health check: `curl http://localhost:8000/health`
 - Check environment variables
+
+If containers start and then exit unexpectedly, run in the foreground to see live errors:
+```bash
+docker compose up
+```
 
 **3. Tests failing:**
 - Check dependencies: `pip install -e .[dev]`
