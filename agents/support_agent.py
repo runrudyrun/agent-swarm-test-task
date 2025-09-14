@@ -79,7 +79,7 @@ IMPORTANT GUIDELINES:
     def process_query(self, query: str, user_id: Optional[str] = None, lang: str = "pt") -> Dict:
         """Process a support query and return response."""
         logger.info(f"SupportAgent processing query: {query}")
-
+        query_lower = query.lower()
         
         # Get tool suggestions based on query
         tool_suggestions = get_tool_suggestions(query)
@@ -106,12 +106,135 @@ IMPORTANT GUIDELINES:
             }
         
         # Handle different types of queries
-        if any(word in query.lower() for word in [
-            "saldo", "conta", "account", "balance", "login", "sign in", "access",
-            "perfil", "profile"
+        # Login / access issues: produce an explanation based on data, not raw dump
+        if any(word in query_lower for word in [
+            "login", "sign in", "signin", "access", "acessar", "entrar", "senha", "password", "2fa", "otp"
         ]):
             if user_id:
-                account_info = get_account_details(user_id)
+                try:
+                    store = UserStore()
+                    user = store.get_user_by_id(user_id)
+                    if not user:
+                        not_found_map = {
+                            "en": f"User {user_id} not found.",
+                            "pt": f"❌ Usuário {user_id} não encontrado.",
+                        }
+                        answer = not_found_map.get(lang.split('-')[0], not_found_map["pt"]) 
+                        return {
+                            "answer": answer,
+                            "agent_used": "support",
+                            "tool_used": None,
+                            "requires_user_id": False,
+                        }
+
+                    status = user.get("status", "unknown")
+                    created_at = user.get("created_at", "N/A")
+
+                    # Minimal, language-specific, relevant login actions
+                    if lang.startswith("en"):
+                        recs_active = [
+                            "Reset your password and try signing in again",
+                            "If you use 2FA, check SMS/app codes and try once more",
+                            "Update the app to the latest version and try a different connection (Wi‑Fi/4G)",
+                            "If it still fails, reply 'Open ticket' and I will escalate",
+                        ]
+                        recs_restricted = [
+                            "Complete any pending identity/registration verification",
+                            "Resolve compliance or security reviews shown in the app",
+                            "Reply 'Open ticket' and I will escalate this now",
+                        ]
+                    else:
+                        recs_active = [
+                            "Redefina sua senha e tente entrar novamente",
+                            "Se usar 2FA, verifique os códigos por SMS/app e tente de novo",
+                            "Atualize o app para a versão mais recente e teste outra conexão (Wi‑Fi/4G)",
+                            "Se continuar falhando, responda 'Abrir chamado' que eu escalo",
+                        ]
+                        recs_restricted = [
+                            "Conclua eventuais verificações de identidade/cadastro",
+                            "Resolva pendências de conformidade ou segurança exibidas no app",
+                            "Responda 'Abrir chamado' que eu escalo agora",
+                        ]
+
+                    recs = recs_restricted if status != "active" else recs_active
+
+                    facts = {
+                        "account_status": status,
+                        "account_created_at": created_at,
+                        "login_issue": True,
+                        "recommended_actions": recs,
+                    }
+
+                    # Summarize with LLM using verified facts
+                    summarized = self._summarize_support_facts_with_llm(query, facts, lang=lang)
+                    if summarized:
+                        account_block = self._build_account_block(user, lang)
+                        return {
+                            "answer": f"{summarized}\n\n{account_block}",
+                            "agent_used": "support",
+                            "tool_used": "diagnose_login",
+                            "requires_user_id": False,
+                        }
+
+                    # Fallback deterministic explanation
+                    if lang.startswith("en"):
+                        if status != "active":
+                            answer = (
+                                "Your account appears to be restricted (status: " + status + "). This can block sign‑in until you "
+                                "complete identity/registration checks or resolve compliance/security reviews in the app.\n\n"
+                                "Please try these steps:\n"
+                                "- Complete any pending verification in the app.\n"
+                                "- If you prefer, reply 'Open ticket' and I will escalate this now."
+                            )
+                        else:
+                            answer = (
+                                "Let’s get you back in. Please try:\n"
+                                "- Reset your password and sign in again.\n"
+                                "- If you use 2FA, check SMS/app codes.\n"
+                                "- Update the app and try a different connection (Wi‑Fi/4G).\n\n"
+                                "If it still fails, reply 'Open ticket' and I’ll escalate."
+                            )
+                    else:
+                        if status != "active":
+                            answer = (
+                                "Sua conta parece estar restrita (status: " + status + "). Isso pode bloquear o acesso até você "
+                                "concluir verificações de identidade/cadastro ou resolver pendências de conformidade/segurança no app.\n\n"
+                                "Tente o seguinte:\n"
+                                "- Concluir as verificações pendentes no app.\n"
+                                "- Se preferir, responda 'Abrir chamado' que eu escalo agora."
+                            )
+                        else:
+                            answer = (
+                                "Vamos recuperar seu acesso. Tente:\n"
+                                "- Redefinir sua senha e entrar novamente.\n"
+                                "- Se usar 2FA, verifique os códigos por SMS/app.\n"
+                                "- Atualize o app e teste outra conexão (Wi‑Fi/4G).\n\n"
+                                "Se ainda falhar, diga 'Abrir chamado' que eu escalo."
+                            )
+
+                    account_block = self._build_account_block(user, lang)
+                    return {
+                        "answer": f"{answer}\n\n{account_block}",
+                        "agent_used": "support",
+                        "tool_used": "diagnose_login",
+                        "requires_user_id": False,
+                    }
+                except Exception as e:
+                    logger.warning(f"Login diagnostics failed: {e}")
+                    return self._handle_general_support_query(query, user_id, lang=lang)
+
+        # Account/profile data (non-login): return summarized account info
+        elif any(word in query_lower for word in [
+            "saldo", "conta", "account", "balance", "perfil", "profile"
+        ]):
+            if user_id:
+                # Keep existing localized formatter for PT; English uses the account block
+                if lang.startswith("pt"):
+                    account_info = get_account_details(user_id)
+                else:
+                    store = UserStore()
+                    user = store.get_user_by_id(user_id)
+                    account_info = self._build_account_block(user, lang) if user else f"User {user_id} not found."
                 return {
                     "answer": account_info,
                     "agent_used": "support",
