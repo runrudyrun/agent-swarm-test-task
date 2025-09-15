@@ -27,9 +27,18 @@ if [ -d "/opt/baked_data/raw" ]; then
   fi
 fi
 
+# Ensure current runtime user owns the mounted data directory when possible
+chown -R "$(id -u)":"$(id -g)" /app/data 2>/dev/null || true
+
 # Normalize permissions so the running user can write the SQLite DB
 chmod -R u+rwX,g+rwX /app/data 2>/dev/null || true
-chmod -R o+rX /app/data 2>/dev/null || true
+chmod -R o+rwx /app/data 2>/dev/null || true
+
+# As a last resort for PaaS volumes with restrictive ownership, make data dir world-writable
+chmod -R 777 /app/data 2>/dev/null || true
+
+# Ensure permissive umask so newly created files are writable by all if needed
+umask 000
 
 # If the chroma DB file exists but is not writable, attempt to fix or remove it
 if [ -e "/app/data/chroma/chroma.sqlite3" ] && [ ! -w "/app/data/chroma/chroma.sqlite3" ]; then
