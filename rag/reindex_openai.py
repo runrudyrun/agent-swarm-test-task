@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 from typing import List
+from dotenv import load_dotenv
 
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -97,6 +98,13 @@ def reindex_with_openai():
     
     # Get OpenAI embeddings
     logger.info("Getting OpenAI embeddings...")
+    provider = os.getenv("EMBEDDINGS_PROVIDER", "")
+    api_key = os.getenv("OPENAI_API_KEY")
+    if provider.lower() != "openai" or not api_key:
+        logger.error(
+            "OpenAI reindexing requires EMBEDDINGS_PROVIDER=openai and OPENAI_API_KEY to be set. Aborting."
+        )
+        return
     embeddings = get_embeddings()
     
     # Create new vector store with OpenAI embeddings
@@ -127,6 +135,12 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    
+    # Load environment variables from .env if present
+    load_dotenv()
+    logger.info(
+        f"EMBEDDINGS_PROVIDER={os.getenv('EMBEDDINGS_PROVIDER', 'local')} | OPENAI_API_KEY set={bool(os.getenv('OPENAI_API_KEY'))}"
     )
     
     # Run re-indexing
