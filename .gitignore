@@ -48,8 +48,6 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-data/chroma/
-data/raw/
 *.log
 .pytest_cache/
 .coverage
