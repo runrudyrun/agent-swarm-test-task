@@ -41,6 +41,14 @@ RUN mkdir -p /app/data/{raw,chroma,mock,sources} && \
     mkdir -p /home/appuser/.cache/infinitepay && \
     chmod +x /app/docker-entrypoint.sh
 
+# Pre-bake RAG index during build so runtime can seed mounted volume
+# Note: If ingestion fails during build (network limits etc.), we proceed without baked data.
+RUN echo "[Build] Pre-baking RAG index..." && \
+    python -m rag.ingest || (echo "[Build] Ingestion failed; continuing without baked index" && true) && \
+    mkdir -p /opt/baked_data/chroma /opt/baked_data/raw && \
+    if [ -d "/app/data/chroma" ] && [ "$(ls -A /app/data/chroma 2>/dev/null || true)" ]; then cp -a /app/data/chroma/. /opt/baked_data/chroma/; fi && \
+    if [ -d "/app/data/raw" ] && [ "$(ls -A /app/data/raw 2>/dev/null || true)" ]; then cp -a /app/data/raw/. /opt/baked_data/raw/; fi
+
 # Expose port
 EXPOSE 8000
 

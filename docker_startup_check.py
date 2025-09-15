@@ -41,6 +41,9 @@ def check_vector_store_compatibility():
         # Test if we can access the collection
         count = vectorstore._collection.count()
         logger.info(f"Vector store loaded successfully with {count} documents")
+        if count == 0:
+            logger.info("Vector store is present but empty; treating as incompatible to trigger ingestion")
+            return False, "EMPTY"
         return True, count
         
     except Exception as e:
@@ -76,28 +79,24 @@ def reindex_if_needed():
         os.environ['TRANSFORMERS_CACHE'] = cache_path
         os.environ['HF_HOME'] = cache_path
         
-        # Check if raw data exists
-        raw_data_path = Path("./data/raw")
-        if not raw_data_path.exists() or not any(raw_data_path.glob("*.json")):
-            logger.warning("No existing scraped data found for re-indexing")
-            return False
-        
         # Check current embedding provider
         embeddings_provider = os.getenv("EMBEDDINGS_PROVIDER", "local")
         
-        if embeddings_provider == "openai" and os.getenv("OPENAI_API_KEY"):
-            logger.info("Re-indexing with OpenAI embeddings...")
+        # Decide strategy based on availability of raw data
+        raw_data_path = Path("./data/raw")
+        has_raw = raw_data_path.exists() and any(raw_data_path.glob("*.json"))
+
+        if embeddings_provider == "openai" and os.getenv("OPENAI_API_KEY") and has_raw:
+            logger.info("Re-indexing with OpenAI embeddings using existing raw data...")
             from rag.reindex_openai import reindex_with_openai
             reindex_with_openai()
         else:
-            logger.info(f"Re-indexing with {embeddings_provider} embeddings...")
-            # For local embeddings, we need to use the ingest module
+            # Fresh ingestion path (works both first-time and refresh)
+            logger.info("Running fresh ingestion with current embeddings provider...")
             from rag.ingest import ingest_infinitepay_content
             import asyncio
-            
-            # Run the ingestion process
             result = asyncio.run(ingest_infinitepay_content())
-            logger.info(f"Re-indexing completed with {result} document chunks")
+            logger.info(f"Ingestion completed with {result} document chunks")
         
         return True
         

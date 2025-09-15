@@ -170,6 +170,12 @@ class VectorStoreManager:
             persist_directory=self.persist_directory,
             collection_name=RAGConfig.COLLECTION_NAME
         )
+        # Ensure the vector store is persisted to disk
+        try:
+            vectorstore.persist()
+            logger.info("Vector store persisted to disk")
+        except Exception as e:
+            logger.warning(f"Could not explicitly persist vector store: {e}")
         
         return vectorstore
     
