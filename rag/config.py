@@ -80,7 +80,7 @@ class RAGConfig:
     """Configuration for RAG system."""
     
     # Vector store settings
-    VECTOR_STORE_PATH = "./data/chroma"
+    VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "./data/chroma")
     COLLECTION_NAME = "infinitepay_knowledge"
     
     # Embedding settings
