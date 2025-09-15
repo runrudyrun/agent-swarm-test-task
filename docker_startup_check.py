@@ -20,7 +20,7 @@ def check_vector_store_compatibility():
     """Check if vector store is compatible with current embedding configuration."""
     try:
         from langchain_chroma import Chroma
-        from rag.config import RAGConfig, get_embeddings
+        from rag.config import RAGConfig, get_embeddings, get_chroma_settings
         
         logger.info("Checking vector store compatibility...")
         
@@ -35,7 +35,8 @@ def check_vector_store_compatibility():
         vectorstore = Chroma(
             persist_directory=RAGConfig.VECTOR_STORE_PATH,
             embedding_function=get_embeddings(),
-            collection_name=RAGConfig.COLLECTION_NAME
+            collection_name=RAGConfig.COLLECTION_NAME,
+            client_settings=get_chroma_settings(),
         )
         
         # Test if we can access the collection

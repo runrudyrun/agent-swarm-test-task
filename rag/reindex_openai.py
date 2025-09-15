@@ -8,9 +8,9 @@ from typing import List
 
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 
-from .config import RAGConfig, get_embeddings
+from .config import RAGConfig, get_embeddings, get_chroma_settings
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,8 @@ def reindex_with_openai():
         documents=splits,
         embedding=embeddings,
         persist_directory=RAGConfig.VECTOR_STORE_PATH,
-        collection_name=RAGConfig.COLLECTION_NAME
+        collection_name=RAGConfig.COLLECTION_NAME,
+        client_settings=get_chroma_settings(),
     )
     
     # Persist the vector store

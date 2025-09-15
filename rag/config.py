@@ -6,6 +6,7 @@ from typing import List
 from langchain.embeddings.base import Embeddings
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
+from chromadb.config import Settings
 
 
 def get_llm_config():
@@ -127,3 +128,24 @@ def get_embeddings() -> Embeddings:
         return OpenAIEmbeddings(model=RAGConfig.OPENAI_EMBEDDING_MODEL)
     else:
         return HuggingFaceEmbeddings(model_name=RAGConfig.LOCAL_EMBEDDING_MODEL)
+
+
+def get_chroma_settings() -> Settings:
+    """Return explicit Chroma client settings to avoid deprecated configuration and control backend.
+
+    Honors env vars:
+    - CHROMA_DB_IMPL (default: duckdb+parquet)
+    - VECTOR_STORE_PATH (default: ./data/chroma)
+    - CHROMA_ANONYMIZED_TELEMETRY (default: false)
+    - CHROMA_ALLOW_RESET (default: false)
+    """
+    impl = os.getenv("CHROMA_DB_IMPL", "duckdb+parquet")
+    allow_reset = os.getenv("CHROMA_ALLOW_RESET", "false").lower() in {"1", "true", "yes"}
+    telemetry = os.getenv("CHROMA_ANONYMIZED_TELEMETRY", "false").lower() in {"1", "true", "yes"}
+
+    return Settings(
+        chroma_db_impl=impl,
+        persist_directory=RAGConfig.VECTOR_STORE_PATH,
+        allow_reset=allow_reset,
+        anonymized_telemetry=telemetry,
+    )

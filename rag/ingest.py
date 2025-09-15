@@ -12,9 +12,9 @@ import httpx
 from bs4 import BeautifulSoup
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 
-from .config import RAGConfig, get_embeddings
+from .config import RAGConfig, get_embeddings, get_chroma_settings
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +168,8 @@ class VectorStoreManager:
             documents=documents,
             embedding=self.embeddings,
             persist_directory=self.persist_directory,
-            collection_name=RAGConfig.COLLECTION_NAME
+            collection_name=RAGConfig.COLLECTION_NAME,
+            client_settings=get_chroma_settings(),
         )
         # Ensure the vector store is persisted to disk
         try:
@@ -185,7 +186,8 @@ class VectorStoreManager:
             vectorstore = Chroma(
                 persist_directory=self.persist_directory,
                 embedding_function=self.embeddings,
-                collection_name=RAGConfig.COLLECTION_NAME
+                collection_name=RAGConfig.COLLECTION_NAME,
+                client_settings=get_chroma_settings(),
             )
             
             # Test if collection exists

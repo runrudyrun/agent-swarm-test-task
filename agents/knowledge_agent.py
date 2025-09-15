@@ -9,7 +9,7 @@ from langchain.prompts import PromptTemplate
 from langchain.schema import BaseMessage, HumanMessage, SystemMessage
 from langchain_chroma import Chroma
 
-from rag.config import RAGConfig, get_embeddings
+from rag.config import RAGConfig, get_embeddings, get_chroma_settings
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,8 @@ FORMATO DAS RESPOSTAS:
             self.vectorstore = Chroma(
                 persist_directory=RAGConfig.VECTOR_STORE_PATH,
                 embedding_function=get_embeddings(),
-                collection_name=RAGConfig.COLLECTION_NAME
+                collection_name=RAGConfig.COLLECTION_NAME,
+                client_settings=get_chroma_settings(),
             )
             
             # Test if collection exists and has documents
