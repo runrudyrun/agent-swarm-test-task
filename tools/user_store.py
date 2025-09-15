@@ -19,7 +19,6 @@ class UserStore:
                 "data/mock/users.json",
                 "./data/mock/users.json", 
                 "../data/mock/users.json",
-                "/home/mynameisnotyourbusiness/Documents/repos/agent-swarm-test-task/data/mock/users.json"
             ]
             for path in possible_paths:
                 if Path(path).exists():
