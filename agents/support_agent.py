@@ -34,17 +34,17 @@ class SupportAgent:
             Tool(
                 name="get_account_details",
                 func=get_account_details,
-                description="Obter detalhes da conta do usuário (requer user_id)"
+                description="Get user account details (requires user_id)"
             ),
             Tool(
                 name="get_recent_transactions",
                 func=get_recent_transactions,
-                description="Obter transações recentes do usuário (requer user_id, opcional: limit)"
+                description="Get recent user transactions (requires user_id, optional: limit)"
             ),
             Tool(
                 name="open_support_ticket",
                 func=open_support_ticket,
-                description="Abrir novo ticket de suporte (requer user_id, subject, description)"
+                description="Open a new support ticket (requires user_id, subject, description)"
             )
         ]
     
@@ -492,7 +492,16 @@ IMPORTANT GUIDELINES:
                             f"Our support team will contact you shortly.{extra}"
                         )
                     else:
-                        answer = open_support_ticket(user_id, subject, description)
+                        extra = (
+                            f"\nRef Externa: {remote_info.get('remote_id')}" if remote_info and remote_info.get("remote_id") else ""
+                        )
+                        answer = (
+                            "✅ Ticket criado com sucesso!\n"
+                            f"ID do Ticket: {ticket['id']}\n"
+                            f"Assunto: {ticket['subject']}\n"
+                            f"Status: {ticket['status'].title()}\n"
+                            f"Nossa equipe de suporte entrará em contato em breve.{extra}"
+                        )
                     return {
                         "answer": answer,
                         "agent_used": "support",

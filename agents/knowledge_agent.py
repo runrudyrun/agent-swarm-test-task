@@ -20,32 +20,8 @@ class KnowledgeAgent:
     def __init__(self):
         self.vectorstore = None
         self.qa_chain = None
-        self.system_prompt = self._create_system_prompt()
         self._initialize_vectorstore()
     
-    def _create_system_prompt(self) -> str:
-        """Create system prompt for the knowledge agent."""
-        return """Você é um assistente de conhecimento da InfinitePay, especializado em responder perguntas sobre produtos, serviços, taxas, funcionalidades e informações gerais da empresa.
-
-SUAS RESPONSABILIDADES:
-1. Responder perguntas usando APENAS as informações fornecidas no contexto
-2. Se a informação não estiver no contexto, diga claramente que não tem essa informação
-3. Fornecer respostas claras, concisas e úteis em português do Brasil
-4. Sempre citar as fontes utilizadas quando possível
-5. Manter um tom profissional e amigável
-
-DIRETRIZES IMPORTANTES:
-- Use SOMENTE informações do contexto fornecido
-- Se não houver informação suficiente, ofereça pesquisar na web (se disponível)
-- Inclua URLs das fontes quando relevante
-- Seja específico sobre produtos e serviços
-- Use exemplos práticos quando apropriado
-
-FORMATO DAS RESPOSTAS:
-- Use markdown para melhor legibilidade
-- Inclua seções claramente marcadas
-- Adicione emojis apropriados para tornar mais amigável
-- Liste fontes no final quando aplicável"""
     
     def _initialize_vectorstore(self):
         """Initialize the vector store and QA chain."""
@@ -326,6 +302,3 @@ ANSWER:"""
         """Check if knowledge agent is available (vector store loaded)."""
         return self.vectorstore is not None
     
-    def get_system_message(self) -> SystemMessage:
-        """Get system message for LLM integration."""
-        return SystemMessage(content=self.system_prompt)

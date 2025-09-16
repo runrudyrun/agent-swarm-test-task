@@ -36,8 +36,12 @@ class RouterAgent:
                 r"reclamação\b", r"assistência\b", r"atendimento\b", r"falar\s+com\s+atendente\b",
                 
                 # Issues
-                r"não\s+consigo\b", r"erro\b", r"falha\b", r"problema\s+com\b", r"minha\s+maquininha\b"
+                r"não\s+consigo\b", r"erro\b", r"falha\b", r"problema\s+com\b", r"minha\s+maquininha\b",
+                # English equivalents
+                r"can't\b", r"cannot\b", r"error\b", r"issue\b", r"problem\b", r"help\b", r"my\s+account\b",
+                r"card\s+reader\b", r"not\s+working\b"
             ],
+
             "knowledge": [
                 # Products and services
                 r"maquininha\b", r"tap\s+to\s+pay\b", r"pdv\b", r"point\s+of\s+sale\b",
@@ -59,7 +63,11 @@ class RouterAgent:
         self.escalation_patterns = [
             r"urgente\b", r"emergência\b", r"crítico\b", r"imediatamente\b",
             r"falar\s+com\s+humano\b", r"atendente\s+humano\b", r"pessoa\s+real\b",
-            r"não\s+entendi\b", r"não\s+respondeu\b", r"tentativas?\b", r"já\s+tentei\b"
+            r"não\s+entendi\b", r"não\s+respondeu\b", r"tentativas?\b", r"já\s+tentei\b",
+            # English equivalents
+            r"urgent\b", r"emergency\b", r"critical\b", r"immediately\b", r"real\s+person\b",
+            r"human\s+agent\b", r"speak\s+to\s+a\s+human\b", r"frustrated\b", r"useless\b",
+            r"didn't\s+understand\b", r"didn't\s+answer\b", r"already\s+tried\b", r"attempts\b"
         ]
         
         # Multi-intent split patterns
@@ -104,7 +112,7 @@ class RouterAgent:
 INTENT CATEGORIES:
 - "support": Account issues, login problems, transaction queries, balance inquiries, transfer issues, account access problems
 - "knowledge": Product information, fees, rates, how-to questions, general company information, pricing, features
-- "escalate": When user explicitly asks for human agent, expresses frustration, or needs urgent complex help
+- "escalate": ONLY when the user explicitly asks to speak to a human, a real person, or an attendant. General requests for 'help' or reports of a 'problem' are NOT 'escalate'.
 - "unknown": When intent is unclear or doesn't fit other categories
 
 CLASSIFICATION RULES:
@@ -213,21 +221,16 @@ REASON: <brief explanation>'''
         # Single intent - classify and route
         # Deterministic override: explicit ticket intent should go to Support
         ql = query.lower()
-        if (
-            any(
-                kw in ql
-                for kw in [
-                    "create support ticket",
-                    "open ticket",
-                    "file a ticket",
-                    "support ticket",
-                    "abrir chamado",
-                    "abrir ticket",
-                    "criar chamado",
-                ]
-            )
-            or ("subject:" in ql and "description:" in ql)
-        ):
+        ticket_patterns = [
+            r"create\s+(a\s+)?support\s+ticket",
+            r"open\s+(a\s+)?ticket",
+            r"file\s+(a\s+)?ticket",
+            r"support\s+ticket",
+            r"abrir\s+(um\s+)?chamado",
+            r"abrir\s+(um\s+)?ticket",
+            r"criar\s+(um\s+)?chamado",
+        ]
+        if any(re.search(p, ql) for p in ticket_patterns) or ("subject:" in ql and "description:" in ql):
             support_response = self.support_agent.process_query(query, user_id, lang=lang)
             support_response.update({
                 "intent": "support",
@@ -401,21 +404,21 @@ REASON: <brief explanation>'''
         """Get capabilities of available agents."""
         return {
             "support": {
-                "description": "Assistente de suporte para questões de conta e transações",
+                "description": "Support assistant for account and transaction questions",
                 "capabilities": [
-                    "Consultar saldo e dados da conta",
-                    "Ver histórico de transações",
-                    "Criar tickets de suporte",
-                    "Ajuda com problemas de conta"
+                    "Check account balance and data",
+                    "View transaction history",
+                    "Create support tickets",
+                    "Help with account problems"
                 ]
             },
             "knowledge": {
-                "description": "Assistente de conhecimento para informações sobre produtos e serviços",
+                "description": "Knowledge assistant for information about products and services",
                 "capabilities": [
-                    "Informações sobre produtos InfinitePay",
-                    "Explicar funcionalidades e taxas",
-                    "Ajuda com como começar",
-                    "Perguntas gerais sobre serviços"
+                    "Information about InfinitePay products",
+                    "Explain features and fees",
+                    "Help with getting started",
+                    "General questions about services"
                 ]
             }
         }

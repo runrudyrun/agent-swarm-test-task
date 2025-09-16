@@ -84,16 +84,6 @@ class TestKnowledgeAgent:
         confidence = agent._calculate_confidence(mock_docs)
         assert 0.3 < confidence <= 1.0  # Should have reasonable confidence
     
-    def test_system_message(self):
-        """Test system message generation."""
-        agent = KnowledgeAgent()
-        
-        system_msg = agent.get_system_message()
-        
-        assert system_msg is not None
-        assert "InfinitePay" in system_msg.content
-        assert "contexto" in system_msg.content.lower()
-        assert "português" in system_msg.content.lower()
     
     def test_create_qa_prompt(self):
         """Test QA prompt creation."""
